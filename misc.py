@@ -130,7 +130,9 @@ def load_salicon(batch_size, server_type):
     '''In order to use this function, you need to move all the images in the ./test/ into ./test/1/. 
     This is because the pytorch's imageFolder and Dataloader works in this way. 
     '''
-    if server_type == 'libigpu5':
+    if server_type == 'libigpu1':
+        path_dataset = os.path.expanduser('~/datasets/salicon_original')
+    elif server_type == 'libigpu5':
         path_dataset = os.path.expanduser('~/datasets/salicon_original')
     else:
         print('[ERROR]: Server type not implemented')
