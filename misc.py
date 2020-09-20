@@ -19,7 +19,7 @@ plt.switch_backend('agg')
 #from scipy.stats import itemfreq
 #from sklearn.cluster import KMeans
 #from itertools import chain
-
+import datasetSALICON as ds
 
 class Flatten(nn.Module):
     def forward(self, x):
