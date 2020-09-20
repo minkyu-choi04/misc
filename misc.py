@@ -126,6 +126,29 @@ def load_imagenet(batch_size, server_type, isAE=False):
         num_workers=4, pin_memory=True, drop_last=True)
     return train_loader, test_loader, 1000
 
+def load_salicon(batch_size, server_type):
+    '''In order to use this function, you need to move all the images in the ./test/ into ./test/1/. 
+    This is because the pytorch's imageFolder and Dataloader works in this way. 
+    '''
+    if server_type == 'libigpu5':
+        path_dataset = os.path.expanduser('~/datasets/salicon_original')
+    else:
+        print('[ERROR]: Server type not implemented')
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225])
+
+    data_train = ds.SALICON(path_dataset, mode='train')
+    data_val = ds.SALICON(path_dataset, mode='val')
+    data_test = datasets.ImageFolder(root=os.path.expanduser(os.path.join(path_dataset,'image', 'images', 'test')), 
+            transform=transforms.Compose([transforms.ToTensor(), normalize]))
+    train_loader = torch.utils.data.DataLoader(data_train, batch_size=batch_size, shuffle=True, 
+            num_workers=4, pin_memory=True, drop_last=True)
+    val_loader = torch.utils.data.DataLoader(data_val, batch_size=batch_size, shuffle=True, 
+            num_workers=2, pin_memory=True, drop_last=True)
+    test_loader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, shuffle=True, 
+            num_workers=2, pin_memory=True, drop_last=True)
+    return train_loader, val_loader, test_loader
 
 
 
