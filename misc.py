@@ -152,6 +152,25 @@ def load_salicon(batch_size, server_type):
             num_workers=2, pin_memory=True, drop_last=False)
     return train_loader, val_loader, test_loader
 
+def load_mit300(batch_size, server_type):
+    if server_type == 'libiglu1':
+        path_dataset = os.path.expanduser('/home/libiadm/HDD1/libigpu1/minkyu/datasets/mit300/BenchmarkIMAGES')
+    else:
+        print('[ERROR]: Server type not implemented')
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225])
+
+    test_data =  datasets.ImageFolder(root=os.path.expanduser(path),
+        transform=transforms.Compose([
+            transforms.Resize((360, 480)),
+            transforms.ToTensor(),
+            normalize
+            ]))
+
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=False,
+        num_workers=2, pin_memory=True, drop_last=False)
+    return test_loader, test_loader, test_loader
 
 
 def load_sequence_mnist100(batch_size):
