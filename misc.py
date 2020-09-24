@@ -153,7 +153,7 @@ def load_salicon(batch_size, server_type):
     return train_loader, val_loader, test_loader
 
 def load_mit300(batch_size, server_type):
-    if server_type == 'libiglu1':
+    if server_type == 'libigpu1':
         path_dataset = os.path.expanduser('/home/libiadm/HDD1/libigpu1/minkyu/datasets/mit300/BenchmarkIMAGES')
     else:
         print('[ERROR]: Server type not implemented')
@@ -161,7 +161,7 @@ def load_mit300(batch_size, server_type):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225])
 
-    test_data =  datasets.ImageFolder(root=os.path.expanduser(path),
+    test_data =  datasets.ImageFolder(root=os.path.expanduser(path_dataset),
         transform=transforms.Compose([
             transforms.Resize((360, 480)),
             transforms.ToTensor(),
