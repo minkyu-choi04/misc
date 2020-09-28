@@ -172,6 +172,37 @@ def load_mit300(batch_size, server_type):
         num_workers=2, pin_memory=True, drop_last=False)
     return test_loader, test_loader, test_loader
 
+def load_MIE(batch_size, server_type, data_type):
+    '''
+    When I downloaded the corresponding dataset from https://www-percept.irisa.fr/asperger_to_kanner/, 
+    I unzip the file and changed file names from one digit to two digits by hand. >> 1.png --> 01.png 
+    And I also put a ./0 dir inside the MIE_Fo and MIE_No and moved all images into it. 
+
+    data_type: 'fo' or 'no'
+    '''
+    if server_type == 'libigpu1':
+        if data_type == 'fo':
+            path_dataset = os.path.expanduser('/home/libiadm/HDD1/libigpu1/minkyu/datasets/ASD/MIE_Fo/stimuli/')
+        elif data_type == 'no':
+            path_dataset = os.path.expanduser('/home/libiadm/HDD1/libigpu1/minkyu/datasets/ASD/MIE_No/stimuli/')
+        else:
+            print('[ERROR]: something is wrong')
+    else:
+        print('[ERROR]: Server type not implemented')
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225])
+
+    test_data =  datasets.ImageFolder(root=os.path.expanduser(path_dataset),
+        transform=transforms.Compose([
+            transforms.Resize((360, 480)),
+            transforms.ToTensor(),
+            normalize
+            ]))
+
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=False,
+        num_workers=2, pin_memory=True, drop_last=False)
+    return test_loader, test_loader, test_loader
 
 def load_sequence_mnist100(batch_size):
     data = np.load('/home/libilab/a/users/choi574/DATASETS/IMAGE/mnist/cluttered_sequence/mnist_sequence3_sample_8dsistortions9x9.npz')
