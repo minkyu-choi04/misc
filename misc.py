@@ -73,7 +73,7 @@ def load_place2(batch_size, server_type):
     return train_loader, test_loader, 365
 
 
-def load_imagenet(batch_size, server_type, isAE=False):
+def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5'):
     if server_type == 'libigpu0':
         path = '/home/libiadm/datasets/ImageNet2012/'
     elif server_type == 'libigpu1':
@@ -95,27 +95,20 @@ def load_imagenet(batch_size, server_type, isAE=False):
     else:
         print("undefined server type")
 
-    if isAE:
-        # normalize -1~1
-        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.5, 0.5, 0.5])
-        size=(192,256)
-    else:
-        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225])
-        size=(224,224)
+	normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+						std=[0.229, 0.224, 0.225])
 
     train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
         transform=transforms.Compose([
-            transforms.RandomResizedCrop(size),
+            transforms.RandomResizedCrop(img_s_return),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize
             ]))
     test_data =  datasets.ImageFolder(root=os.path.expanduser(path + 'val/'),
         transform=transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(size),
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
             transforms.ToTensor(),
             normalize
             ]))
