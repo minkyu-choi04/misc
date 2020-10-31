@@ -19,7 +19,9 @@ plt.switch_backend('agg')
 #from scipy.stats import itemfreq
 #from sklearn.cluster import KMeans
 #from itertools import chain
-import datasetSALICON as ds
+
+# This is required for salicon dataset
+#import datasetSALICON as ds
 
 class Flatten(nn.Module):
     def forward(self, x):
@@ -73,7 +75,7 @@ def load_place2(batch_size, server_type):
     return train_loader, test_loader, 365
 
 
-def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5'):
+def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True):
     if server_type == 'libigpu0':
         path = '/home/libiadm/datasets/ImageNet2012/'
     elif server_type == 'libigpu1':
@@ -95,23 +97,43 @@ def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='lib
     else:
         print("undefined server type")
 
-	normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-						std=[0.229, 0.224, 0.225])
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-    train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
-        transform=transforms.Compose([
+    if isRandomResize:
+        print('load imagenet with RandomResize')
+        train_transforms = transforms.Compose([
             transforms.RandomResizedCrop(img_s_return),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             normalize
-            ]))
+            ]) 
+    else:
+        print('load imagenet without RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+
+
+    train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+                                        transform=train_transforms)
+    '''train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+    transform=transforms.Compose([
+    transforms.RandomResizedCrop(img_s_return),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    normalize
+    ]))'''
     test_data =  datasets.ImageFolder(root=os.path.expanduser(path + 'val/'),
         transform=transforms.Compose([
             transforms.Resize(img_s_load),
             transforms.CenterCrop(img_s_return),
             transforms.ToTensor(),
             normalize
-            ]))
+        ]))
 
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
         num_workers=4, pin_memory=True, drop_last=True)
@@ -273,28 +295,33 @@ def load_lsun(batch_size, img_size=256):
             num_workers=4, pin_memory=True, drop_last=True)
     return train_loader, valid_loader, 10
 
-def load_mnist(batch_size, img_size=32):
+def load_mnist(batch_size, img_size=32, server_type='libigpu4567'):
+    if server_type == 'libigpu4567':
+        save_dir = '/home/choi574/datasets/mnist'
+    else:
+        print('dir not defined for other gpu servers')
+
     normalize = transforms.Normalize(mean=[0.5,0.5,0.5],
-                                         std=[0.5, 0.5, 0.5])
+                    std=[0.5, 0.5, 0.5])
     train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST(root='/home/libilab/a/users/choi574/DATASETS/IMAGE/mnist/', 
+        datasets.MNIST(root=save_dir, 
             train=True, transform=transforms.Compose([
             transforms.Resize((img_size, img_size)),
             transforms.ToTensor(),
             normalize,
         ]), download=True),
         batch_size=batch_size, shuffle=True,
-        num_workers=4, pin_memory=True, drop_last=True)
+        num_workers=1, pin_memory=True, drop_last=True)
 
     test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST(root='/home/libilab/a/users/choi574/DATASETS/IMAGE/mnist/', 
+        datasets.MNIST(root=save_dir, 
             train=False, transform=transforms.Compose([
             transforms.Resize((img_size, img_size)),
             transforms.ToTensor(),
             normalize,
         ]), download=True),
         batch_size=batch_size, shuffle=True,
-        num_workers=4, pin_memory=True, drop_last=True)
+        num_workers=1, pin_memory=True, drop_last=True)
     return train_loader, test_loader, 10
    
 
@@ -470,6 +497,27 @@ class AverageMeter(object):
         fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
         return fmtstr.format(**self.__dict__)
 
+def get_PE_cart(batch_s, pe_s):
+	'''
+	Generates cartesian Positional Encoding. 
+	Args: 
+		batch_s: int, batch size. 
+		pe_s: (int h, int w), size of Positional encoding feature 
+	Return:
+		pe: (batch_s, 2, pe_s[0], pe_s[1])
+	'''
+	lin_x = torch.unsqueeze(torch.linspace(-1.0, 1.0, steps=pe_s[1], device='cuda'), 0).repeat(pe_s[0], 1) # (192, 256)
+	lin_y = torch.unsqueeze(torch.linspace(-1.0, 1.0, steps=pe_s[0], device='cuda'), 0).repeat(pe_s[1], 1) # (, 256)
+	lin_y = lin_y.t()
+	
+	lin_x = torch.unsqueeze(lin_x, 0).repeat(batch_s, 1, 1) # (batch, fm_s, fm_s)
+	lin_y = torch.unsqueeze(lin_y, 0).repeat(batch_s, 1, 1)
+	# (b, h, w)
+
+	pe = torch.cat((lin_x.unsqueeze(1), lin_y.unsqueeze(1)), 1)# (b, 2, h, w)
+	return pe
+
+
 def get_coord_feature(batch_s, input_s, pe_s, polar_grid):
     '''
     code from (base) min@libigpu1:~/research_mk/attention_model_biliniear_localGlobal_6_reinforce/detach_recurrency_group/rl_base_recon_corHM_absHM_corrREINFORCE_corInitRNN_detachTD_hlr_lowResD_detachVD_removeBottleNeckV2I_conventionalResInc_contVer110
@@ -507,9 +555,9 @@ def get_coord_feature(batch_s, input_s, pe_s, polar_grid):
 
     return polar_pe_resized
 
-def set_w_requires_no_grad(model):
+def set_w_requires_no_grad(model, tf=False):
     for param in model.parameters():
-        param.requires_grad = False
+        param.requires_grad = tf
 
 def load_state_dict_removing_string(model, load_dir, str_remove):
     modified_params = {}
