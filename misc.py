@@ -74,10 +74,172 @@ def load_place2(batch_size, server_type):
             num_workers=2, pin_memory=True, drop_last=True)
     return train_loader, test_loader, 365
 
+def load_places_class365(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True):
+    if server_type == 'libigpu4':
+        path = '/home/choi574/datasets/places20/'
+    elif server_type == 'libigpu5':
+        path = '/home/choi574/datasets/places20/'
+    elif server_type == 'libigpu6':
+        path = '/home/choi574/datasets/places20/'
+    elif server_type == 'libigpu7':
+        path = '/home/choi574/datasets/places20/'
+    elif server_type == 'libigpu0':
+        path = '/home/min/DATASET/Places2/places365_standard/'
+    else:
+        print("undefined server type")
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    if isRandomResize:
+        print('load places365 with RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.RandomResizedCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+    else:
+        print('load places365 without RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+
+
+    train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+                                        transform=train_transforms)
+    test_data =  datasets.ImageFolder(root=os.path.expanduser(path + 'val/'),
+        transform=transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.ToTensor(),
+            normalize
+        ]))
+
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
+        num_workers=2, pin_memory=True, drop_last=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True,
+        num_workers=2, pin_memory=True, drop_last=True)
+    return train_loader, test_loader, 365
+
+def load_places_class20(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True):
+    if server_type == 'libigpu4':
+        path = '/home/choi574/datasets/places20/'
+    elif server_type == 'libigpu5':
+        path = '/home/choi574/datasets/places20/'
+    elif server_type == 'libigpu6':
+        path = '/home/choi574/datasets/places20/'
+    elif server_type == 'libigpu7':
+        path = '/home/choi574/datasets/places20/'
+    else:
+        print("undefined server type")
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    if isRandomResize:
+        print('load places20 with RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.RandomResizedCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+    else:
+        print('load places20 without RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+
+
+    train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+                                        transform=train_transforms)
+    test_data =  datasets.ImageFolder(root=os.path.expanduser(path + 'val/'),
+        transform=transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.ToTensor(),
+            normalize
+        ]))
+
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
+        num_workers=2, pin_memory=True, drop_last=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True,
+        num_workers=2, pin_memory=True, drop_last=True)
+    return train_loader, test_loader, 20
+
+def load_imagenet_class100(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True):
+    if server_type == 'libigpu4':
+        path = '/home/choi574/datasets/ImageNet2012_class100/'
+    elif server_type == 'libigpu5':
+        path = '/home/choi574/datasets/ImageNet2012_class100/'
+    elif server_type == 'libigpu6':
+        path = '/home/choi574/datasets/ImageNet2012_class100/'
+    elif server_type == 'libigpu7':
+        path = '/home/choi574/datasets/ImageNet2012_class100/'
+    elif server_type == 'libigpu0':
+        path = '/home/min/DATASET/ImageNet2012_class100/'
+    elif server_type == 'libigpu1':
+        path = '/home/min/datasets/ImageNet2012_class100/'
+    elif server_type == 'libigpu3':
+        path = '/home/min/datasets/ImageNet2012_class100/'
+    else:
+        print("undefined server type")
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    if isRandomResize:
+        print('load imagenet with RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.RandomResizedCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+    else:
+        print('load imagenet without RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+
+
+    train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+                                        transform=train_transforms)
+    '''train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+    transform=transforms.Compose([
+    transforms.RandomResizedCrop(img_s_return),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    normalize
+    ]))'''
+    test_data =  datasets.ImageFolder(root=os.path.expanduser(path + 'val/'),
+        transform=transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.ToTensor(),
+            normalize
+        ]))
+
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
+        num_workers=4, pin_memory=True, drop_last=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True,
+        num_workers=4, pin_memory=True, drop_last=True)
+    return train_loader, test_loader, 100
+
 
 def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True):
     if server_type == 'libigpu0':
-        path = '/home/libiadm/datasets/ImageNet2012/'
+        path = '/home/libi/datasets/ImageNet2012/'
     elif server_type == 'libigpu1':
         path = '/home/libiadm/data/ImageNet2012/'
     elif server_type == 'home':
@@ -295,7 +457,7 @@ def load_lsun(batch_size, img_size=256):
             num_workers=4, pin_memory=True, drop_last=True)
     return train_loader, valid_loader, 10
 
-def load_mnist(batch_size, img_size=32, server_type='libigpu4567'):
+def load_mnist_old(batch_size, img_size=32, server_type='libigpu4567'):
     if server_type == 'libigpu4567':
         save_dir = '/home/choi574/datasets/mnist'
     else:
@@ -322,6 +484,57 @@ def load_mnist(batch_size, img_size=32, server_type='libigpu4567'):
         ]), download=True),
         batch_size=batch_size, shuffle=True,
         num_workers=1, pin_memory=True, drop_last=True)
+    return train_loader, test_loader, 10
+
+def load_mnist(batch_size, img_size=32, server_type='libigpu4567', isNormalize=True):
+    if server_type == 'libigpu4567':
+        save_dir = './'
+    else:
+        print('dir not defined for other gpu servers')
+
+    if isNormalize:
+        normalize = transforms.Normalize(mean=[0.5],
+                                        std=[0.5])
+
+        train_loader = torch.utils.data.DataLoader(
+            datasets.MNIST(root=save_dir,
+                train=True, transform=transforms.Compose([
+                #transforms.Resize((img_size, img_size)),
+                transforms.ToTensor(),
+                normalize,
+            ]), download=True),
+            batch_size=batch_size, shuffle=True,
+            num_workers=1, pin_memory=True, drop_last=True)
+
+        test_loader = torch.utils.data.DataLoader(
+            datasets.MNIST(root=save_dir,
+                train=False, transform=transforms.Compose([
+                transforms.Resize((img_size, img_size)),
+                transforms.ToTensor(),
+                normalize,
+            ]), download=True),
+            batch_size=batch_size, shuffle=True,
+            num_workers=1, pin_memory=True, drop_last=True)
+
+    else:
+        train_loader = torch.utils.data.DataLoader(
+            datasets.MNIST(root=save_dir,
+                train=True, transform=transforms.Compose([
+                #transforms.Resize((img_size, img_size)),
+                transforms.ToTensor(),
+            ]), download=True),
+            batch_size=batch_size, shuffle=True,
+            num_workers=1, pin_memory=True, drop_last=True)
+
+        test_loader = torch.utils.data.DataLoader(
+            datasets.MNIST(root=save_dir,
+                train=False, transform=transforms.Compose([
+                transforms.Resize((img_size, img_size)),
+                transforms.ToTensor(),
+            ]), download=True),
+            batch_size=batch_size, shuffle=True,
+            num_workers=1, pin_memory=True, drop_last=True)
+
     return train_loader, test_loader, 10
    
 
@@ -426,17 +639,27 @@ def load_ucsd_birds(batch_size, img_size):
     return train_loader, test_loader, 200
 
 
-def plot_samples_from_images(images, batch_size, plot_path, filename):
+def plot_samples_from_images(images, batch_size, plot_path, filename, isRange01=False):
     ''' Plot images
+    Changed 2020.11.23
+        isRange01 is added to normalize image in different way. 
+
     Args: 
         images: (b, c, h, w), tensor in any range. (c=3 or 1)
         batch_size: int
         plot_path: string
         filename: string
+        isRange01: True/False, Normalization will be different. 
     '''
     #print(torch.max(images), torch.min(images))
-    max_pix = torch.max(torch.abs(images))
-    images = ((images/max_pix) + 1.0)/2.0
+    if isRange01:
+        max_pix = torch.max(torch.abs(images))
+        images = images/max_pix
+        #print(max_pix, torch.min(torch.abs(images)))
+        #print(torch.max(images))
+    else:
+        max_pix = torch.max(torch.abs(images))
+        images = ((images/max_pix) + 1.0)/2.0
     if(images.size()[1] == 1): # binary image
         images = torch.cat((images, images, images), 1)
     
@@ -518,13 +741,16 @@ def get_PE_cart(batch_s, pe_s):
 	return pe
 
 
-def get_coord_feature(batch_s, input_s, pe_s, polar_grid):
+def get_coord_feature(batch_s, input_s, pe_s, polar_grid=None):
     '''
+    20201124
+    Changed to have an option to return Cart PE. 
+
     code from (base) min@libigpu1:~/research_mk/attention_model_biliniear_localGlobal_6_reinforce/detach_recurrency_group/rl_base_recon_corHM_absHM_corrREINFORCE_corInitRNN_detachTD_hlr_lowResD_detachVD_removeBottleNeckV2I_conventionalResInc_contVer110
 
     Generate Positional encoding
     PE feature will first be generated in cartesian space with same size of input. 
-    And then it will be transformed to polar space. 
+    And then it will be transformed to polar space, if polar_grid not nont. 
     After that, it will be resized to pe_s. 
 
     Args:
@@ -533,7 +759,7 @@ def get_coord_feature(batch_s, input_s, pe_s, polar_grid):
         pe_s: (int h', int w'), Size of positional encoding feature in polar space. This size of feature will be returned. 
         polar_grid: Grid for polar transformation. It must be the same grid used in polar CNN. Fixation points must be already added to this grid.
     return:
-        polar_pe_resized: (b, 3, h', w')
+        polar_pe_resized: (b, 2, h', w')
     '''
 
     with torch.no_grad():
@@ -549,11 +775,14 @@ def get_coord_feature(batch_s, input_s, pe_s, polar_grid):
 
         cart_pe = torch.cat((lin_x.unsqueeze(1), lin_y.unsqueeze(1)), 1)# (b, 2, h, w)
 
-        polar_pe = torch.nn.functional.grid_sample(cart_pe, polar_grid, align_corners=False) # (b, 2, h', w')
-
-        polar_pe_resized =  torch.nn.functional.interpolate(polar_pe, pe_s)
-
-    return polar_pe_resized
+        if polar_grid is not None:
+            pe = torch.nn.functional.grid_sample(cart_pe, polar_grid, align_corners=False) # (b, 2, h', w')
+        else:
+            pe = cart_pe
+        
+        pe_resized =  torch.nn.functional.interpolate(pe, pe_s)
+    
+    return pe_resized
 
 def set_w_requires_no_grad(model, tf=False):
     for param in model.parameters():
@@ -589,6 +818,20 @@ def check_load_params(model_after_load, load_dir):
     #diff = torch.sum(torch.abs(model_after_load.encoder[0].weight.cuda() - params_dict['module.model.encoder.0.weight'].cuda()))
     diff = torch.sum(torch.abs(model_after_load.conv1_1.conv.weight.cuda() - params_dict['module.resnet.conv1_1.conv.weight'].cuda()))
     print('weight difference must be 0.0: ', diff)
+
+def compare_params():
+    basedir = '/home/libiadm/export/HDD1/minkyu/train/polar/pp_repl_fem_femb_ts'
+
+    init_dir = os.path.join(basedir, 'Attn_e0b0.pt')
+    train_dir = os.path.join(basedir, 'Attn_e20b0.pt')
+
+    params_init = torch.load(init_dir)
+    params_train = torch.load(train_dir)
+
+
+    for k, v in params_init.items():
+        print(k)
+        print(torch.sum(torch.abs(params_init[k] - params_train[k])))
 
 
 def noralize_min_max(fms):
@@ -674,7 +917,7 @@ def mark_fixations_history(imgs, fixs_h, ds=7):
 
     return (imgs -0.5)*2.0
 
-def heatmap_generator(self, pred, feature, fc_weight, top_N_map=1):
+def heatmap_generator(pred, feature, fc_weight, top_N_map=1):
     ### 1. get top-N class index (self.top_N_map)
     # pred: (batch, #class)
     # feature: (batch, #inputFM, w, h)
@@ -848,7 +1091,7 @@ def add_heatmap_on_image_tensor(heatmap, image, resize_s=(112,112), isNormHM=Tru
     ret = np.swapaxes(np.swapaxes(ret.astype(np.float32), 2, 3), 1, 2) # 0~255 ranged numpy array(b, 3, h, w)
     ret = torch.tensor(ret/255.0, device=device)
 
-    print(np.shape(ret))
+    #print(np.shape(ret))
     return ret
 
 
@@ -864,5 +1107,24 @@ def wrapper_hm(hm, image):
         hmimg = misc.add_heatmap_on_image(hm_i, image_i)
         ret.append(hmimg)
     ret = np.stack(ret, axis=0)
-    print(np.shape(ret))
+    #print(np.shape(ret))
     return ret
+
+def check_gradients(model):
+    '''20201124
+    return model's gradient stats
+    https://discuss.pytorch.org/t/get-the-gradient-of-the-network-parameters/50575
+    '''
+
+    max_max = 0
+    max_mean = 0
+    max_val = 0
+    for p in model.parameters():
+        mx = torch.max(torch.abs(p.grad))
+        if max_max < mx:
+            max_max = mx
+
+        mn = torch.mean(torch.abs(p.grad))
+        if max_mean < mn:
+            max_mean = mn
+    return max_max, max_mean, max_val
