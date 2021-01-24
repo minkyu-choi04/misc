@@ -23,6 +23,10 @@ plt.switch_backend('agg')
 # This is required for salicon dataset
 #import datasetSALICON as ds
 
+def isNan(tensor):
+    '''get a tensor and return True if it includes Nan'''
+    return (tensor!=tensor).any()
+
 class Flatten(nn.Module):
     def forward(self, x):
         x = x.view(x.size()[0], -1)
@@ -243,7 +247,7 @@ def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='lib
     elif server_type == 'libigpu1':
         path = '/home/libiadm/data/ImageNet2012/'
     elif server_type == 'home':
-        path = '~/DATASETS/ImageNet2012/'
+        path = '~/dataset/ImageNet2012/'
     elif server_type == 'libigpu2':
         path = '/home/libiadm/datasets/ImageNet2012/'
     elif server_type == 'libigpu3':
