@@ -241,13 +241,14 @@ def load_imagenet_class100(batch_size, img_s_load=512, img_s_return=448, server_
     return train_loader, test_loader, 100
 
 
-def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True):
+
+def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True, num_workers=4):
     if server_type == 'libigpu0':
         path = '/home/libi/datasets/ImageNet2012/'
     elif server_type == 'libigpu1':
         path = '/home/libiadm/data/ImageNet2012/'
     elif server_type == 'home':
-        path = '~/dataset/ImageNet2012/'
+        path = '~/datasets/ImageNet2012/'
     elif server_type == 'libigpu2':
         path = '/home/libiadm/datasets/ImageNet2012/'
     elif server_type == 'libigpu3':
@@ -302,10 +303,79 @@ def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='lib
         ]))
 
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
-        num_workers=4, pin_memory=True, drop_last=True)
+        num_workers=num_workers, pin_memory=True, drop_last=True)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True,
-        num_workers=4, pin_memory=True, drop_last=True)
+        num_workers=num_workers, pin_memory=True, drop_last=True)
     return train_loader, test_loader, 1000
+
+def load_imagenet_DDP(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True, num_workers=4):
+    if server_type == 'libigpu0':
+        path = '/home/libi/datasets/ImageNet2012/'
+    elif server_type == 'libigpu1':
+        path = '/home/libiadm/data/ImageNet2012/'
+    elif server_type == 'home':
+        path = '~/datasets/ImageNet2012/'
+    elif server_type == 'libigpu2':
+        path = '/home/libiadm/datasets/ImageNet2012/'
+    elif server_type == 'libigpu3':
+        path = '/home/libiadm/data/ImageNet2012/'
+    elif server_type == 'libigpu4':
+        path = '/home/libiadm/datasets/ImageNet2012/'
+    elif server_type == 'libigpu5':
+        path = '/home/libiadm/datasets/ImageNet2012/'
+    elif server_type == 'libigpu6':
+        path = '/home/libiadm/datasets/ImageNet2012/'
+    elif server_type == 'libigpu7':
+        path = '/home/libiadm/datasets/ImageNet2012/'
+    else:
+        print("undefined server type")
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    if isRandomResize:
+        print('load imagenet with RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.RandomResizedCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+    else:
+        print('load imagenet without RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+
+
+    train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+                                        transform=train_transforms)
+    '''train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+    transform=transforms.Compose([
+    transforms.RandomResizedCrop(img_s_return),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    normalize
+    ]))'''
+    test_data =  datasets.ImageFolder(root=os.path.expanduser(path + 'val/'),
+        transform=transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.ToTensor(),
+            normalize
+        ]))
+
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
+
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=False,
+        num_workers=num_workers, pin_memory=True, drop_last=True, sampler=train_sampler)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True,
+        num_workers=num_workers, pin_memory=True, drop_last=True)
+    return train_loader, test_loader, 1000, train_sampler
+
 
 def load_salicon(batch_size, server_type):
     '''In order to use this function, you need to move all the images in the ./test/ into ./test/1/. 
@@ -717,6 +787,9 @@ class AverageMeter(object):
     def update(self, val, n=1):
         self.val = val
         self.sum += val * n
+        ''' Multiplying n to val before summation is done because
+        it is usually used for loss which is already mean with respect to batch size. 
+        '''
         self.count += n
         self.avg = self.sum / self.count
 

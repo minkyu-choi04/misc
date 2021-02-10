@@ -66,3 +66,7 @@ def lookup_name(n):
 def lookup_label(n):
     return dataset_100[n]
 
+'''
+see example :
+    choi574@libigpu6:~/research_mk/polar/pretrain/cart_warping1/exp_hm_vis/baseline_cartCNN_imgnet100_res56_dataCollection_crossGenWarp56
+'''
