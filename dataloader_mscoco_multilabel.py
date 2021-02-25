@@ -7,8 +7,8 @@ import torchvision.datasets as datasets
 from PIL import Image
 
 import sys
-#sys.path.append('/export/home/choi574/cocoapi/PythonAPI')
-sys.path.append('/home/choi574/cocoapi/PythonAPI')
+#sys.path.append('/home/choi574/cocoapi/PythonAPI')
+sys.path.append('/mnt/lls/local_export/3/home/choi574/cocoapi/PythonAPI')
 from pycocotools.coco import COCO
 
 class CocoDetection(datasets.coco.CocoDetection):
@@ -54,9 +54,9 @@ class CocoDetection(datasets.coco.CocoDetection):
 
 def load_mscoco_multilabel_ddp(batch_size, img_s_load=256, img_s_return=224, server_type='libigpu5', isRandomResize=True, num_workers=4):
     if server_type == 'libigpu0':
-        path = '/home/libi/datasets/ImageNet2012/'
+        path = '/home/min/DATASET/mscoco/'
     elif server_type == 'libigpu1':
-        path = '/home/libiadm/data/ImageNet2012/'
+        path = '/home/min/datasets/mscoco/'
     elif server_type == 'home':
         path = '~/datasets/ImageNet2012/'
     elif server_type == 'libigpu2':
@@ -66,9 +66,9 @@ def load_mscoco_multilabel_ddp(batch_size, img_s_load=256, img_s_return=224, ser
     elif server_type == 'libigpu4':
         path = '/home/libiadm/datasets/ImageNet2012/'
     elif server_type == 'libigpu5':
-        path = '/home/libiadm/datasets/ImageNet2012/'
+        path = '/home/choi574/datasets/mscoco/'
     elif server_type == 'libigpu6':
-        path = '/home/libiadm/datasets/ImageNet2012/'
+        path = '/home/choi574/datasets/mscoco/'
     elif server_type == 'libigpu7':
         path = '/home/libiadm/datasets/ImageNet2012/'
     else:
@@ -119,19 +119,19 @@ def load_mscoco_multilabel(batch_size, img_s_load=256, img_s_return=224, server_
     if server_type == 'libigpu0':
         path = '/home/libi/datasets/ImageNet2012/'
     elif server_type == 'libigpu1':
-        path = '/home/libiadm/data/ImageNet2012/'
+        path = '/home/min/datasets/mscoco/'
     elif server_type == 'home':
         path = '~/datasets/ImageNet2012/'
     elif server_type == 'libigpu2':
-        path = '/home/libiadm/datasets/ImageNet2012/'
+        path = '/home/choi574/datasets/mscoco/'
     elif server_type == 'libigpu3':
         path = '/home/min/datasets/mscoco/'
     elif server_type == 'libigpu4':
         path = '/home/libiadm/datasets/ImageNet2012/'
     elif server_type == 'libigpu5':
-        path = '/home/libiadm/datasets/ImageNet2012/'
+        path = '/home/choi574/datasets/mscoco/data/'
     elif server_type == 'libigpu6':
-        path = '/home/libiadm/datasets/ImageNet2012/'
+        path = '/home/choi574/datasets/mscoco/'
     elif server_type == 'libigpu7':
         path = '/home/libiadm/datasets/ImageNet2012/'
     else:

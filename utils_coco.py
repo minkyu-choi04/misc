@@ -1,7 +1,7 @@
 import numpy as np
 
-#source_dir = '/mnt/lls/local_export/3/home/choi574/git_libs/misc/coco-labels-2014_2017.txt'
-source_dir = '/home/choi574/git_libs/misc/coco-labels-2014_2017.txt'
+source_dir = '/mnt/lls/local_export/3/home/choi574/git_libs/misc/coco-labels-2014_2017.txt'
+#source_dir = '/home/choi574/git_libs/misc/coco-labels-2014_2017.txt'
 label_num2str = {}
 label_str2num = {}
 labels_all = []
@@ -28,7 +28,7 @@ def lookup_coco_str2num(label):
 #print(lookup_coco_num2str(0))
 #print(lookup_coco_str2num('bicycle'))
 
-def visualize_sorted_labels(targets, preds):
+def visualize_sorted_labels(targets, preds, isNegative=False):
     ''' 2021.02.06
     It works for one image sample at a time. 
     inputs: 
@@ -46,9 +46,22 @@ def visualize_sorted_labels(targets, preds):
     _labels_all = np.expand_dims(np.squeeze(np.array(labels_all)), 1)
 
     #print(labels_idx.shape, targets.shape, preds.shape, _labels_all.shape)
-    tot = np.concatenate((targets, preds, labels_idx, _labels_all), 1).tolist() #(80x3)
+    #preds = map(float, preds)
+    preds_m = ["%.10f" % number for number in np.squeeze(preds)]
+    preds_m = np.expand_dims(np.array(preds_m), 1)
+    #print(preds_m.shape)
+    tot = np.concatenate((targets, preds_m, labels_idx, _labels_all), 1).tolist() #(80x3)
+    tot_neg = np.concatenate((preds_m, targets, labels_idx, _labels_all), 1).tolist() #(80x3)
+    np.save('tot.npy', tot_neg)
+    np.save('preds.npy', preds)
     tot_sorted = sorted(tot, reverse=True)
-    return tot_sorted
+    tot_neg_sorted = sorted(tot_neg, reverse=True)
+
+
+    if not isNegative:
+        return tot_sorted
+    else:
+        return tot_sorted, tot_neg_sorted
 
 
 
