@@ -13,6 +13,9 @@ import random
 
 import matplotlib.pyplot as plt
 import cv2
+from PIL import Image
+import sys
+
 plt.switch_backend('agg') 
 #from mpl_toolkits.axes_grid1 import ImageGrid
 #from sklearn.utils import linear_assignment_
@@ -22,6 +25,37 @@ plt.switch_backend('agg')
 
 # This is required for salicon dataset
 #import datasetSALICON as ds
+
+
+from pathlib import Path
+def make_dir(path, parents=False):
+    Path(os.path.expanduser(path)).mkdir(parents=parents, exist_ok=True)
+
+class Load_PIL_to_tensor():
+    def __init__(self, img_s_load=227):
+        self.transform = transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225],
+            ),
+        ])
+
+    def pil_loader(self, path: str) -> Image.Image:
+        # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
+        # https://github.com/pytorch/vision/blob/main/torchvision/datasets/folder.py#L244
+        with open(path, "rb") as f:
+            img = Image.open(f)
+            return img.convert("RGB")
+
+    def load_image_to_tensor(self, path: str) -> torch.Tensor:
+        image_pil = self.pil_loader(path)
+        #image_tensor = transforms.ToTensor()(image_pil).unsqueeze_(0)
+        image_tensor = self.transform(image_pil)
+        #print(image_tensor.size(), torch.max(image_tensor), torch.min(image_tensor))
+        
+        return image_tensor.unsqueeze(0)
 
 def isNan(tensor):
     '''get a tensor and return True if it includes Nan'''
@@ -42,7 +76,7 @@ def initialize_weight(m):
         nn.init.constant_(m.bias, 0)
 
 
-def load_place2(batch_size, server_type):
+def load_place2(batch_size, img_s_load=256, img_s_return=224, server_type='libigpu0', num_workers=4):
     if server_type == 'libigpu0':
         path = '~/DATASET/Places2/places365_standard/'
     elif server_type == 'libigpu1':
@@ -60,23 +94,122 @@ def load_place2(batch_size, server_type):
             std=[0.229, 0.224, 0.225])
     train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train'),
             transform=transforms.Compose([
-                transforms.RandomResizedCrop(224, scale=(0.3, 1.0)),
+                transforms.RandomResizedCrop(img_s_return),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 normalize
                 ]))
     test_data =  datasets.ImageFolder(root=os.path.expanduser(path + 'val'),
             transform=transforms.Compose([
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
+                transforms.Resize(img_s_load),
+                transforms.CenterCrop(img_s_return),
                 transforms.ToTensor(),
                 normalize
                 ]))
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
-            num_workers=4, pin_memory=True, drop_last=True)
+            num_workers=num_workers, pin_memory=True, drop_last=True)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True,
-            num_workers=2, pin_memory=True, drop_last=True)
+            num_workers=int(num_workers/2), pin_memory=True, drop_last=True)
     return train_loader, test_loader, 365
+
+
+
+
+def load_places_class100_large(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', num_workers=8, isRandomResize=True):
+    print(server_type)
+    if server_type == 'libigpu2':
+        path = '/home/choi574/datasets/places100_sampled_large/'
+    elif server_type=='libigpu2' or server_type=='libigpu5' or server_type=='libigpu6':
+        path = '/home/choi574/datasets/places100_sampled_large/'
+    elif server_type=='libigpu0' or server_type=='libigpu1' or server_type=='libigpu3':
+        path = '/home/min/datasets/places100_sampled_large/'
+    else:
+        print("undefined server type")
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    if isRandomResize:
+        print('load places100 with RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.RandomResizedCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+    else:
+        print('load places100 without RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+
+    train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+                                        transform=train_transforms)
+    test_data =  datasets.ImageFolder(root=os.path.expanduser(path + 'val/'),
+        transform=transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.ToTensor(),
+            normalize
+        ]))
+
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
+        num_workers=num_workers, pin_memory=True, drop_last=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True,
+        num_workers=int(num_workers/2), pin_memory=True, drop_last=True)
+    return train_loader, test_loader, 100
+
+
+def load_places_class100(batch_size, img_s_load=256, img_s_return=224, server_type='libigpu5', num_workers=4, isRandomResize=True):
+    print(server_type)
+    if server_type == 'libigpu2':
+        path = '/home/choi574/datasets/places100_sampled/'
+    elif server_type=='libigpu2' or server_type=='libigpu5' or server_type=='libigpu6':
+        path = '/home/choi574/datasets/places100_sampled/'
+    elif server_type=='libigpu0' or server_type=='libigpu1' or server_type=='libigpu3':
+        path = '/home/min/datasets/places100_sampled/'
+    else:
+        print("undefined server type")
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    if isRandomResize:
+        print('load places100 with RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.RandomResizedCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+    else:
+        print('load places100 without RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+
+    train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+                                        transform=train_transforms)
+    test_data =  datasets.ImageFolder(root=os.path.expanduser(path + 'val/'),
+        transform=transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.ToTensor(),
+            normalize
+        ]))
+
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
+        num_workers=num_workers, pin_memory=True, drop_last=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True,
+        num_workers=int(num_workers/2), pin_memory=True, drop_last=True)
+    return train_loader, test_loader, 365
+
 
 def load_places_class365(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True):
     if server_type == 'libigpu4':
@@ -178,7 +311,7 @@ def load_places_class20(batch_size, img_s_load=512, img_s_return=448, server_typ
         num_workers=2, pin_memory=True, drop_last=True)
     return train_loader, test_loader, 20
 
-def load_imagenet_class100(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True, num_workers=4):
+def notused_load_imagenet_class100(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True, num_workers=4, num_workers_t=None):
     if server_type == 'libigpu4':
         path = '/home/choi574/datasets/ImageNet2012_class100/'
     elif server_type == 'libigpu5':
@@ -188,7 +321,7 @@ def load_imagenet_class100(batch_size, img_s_load=512, img_s_return=448, server_
     elif server_type == 'libigpu7':
         path = '/home/choi574/datasets/ImageNet2012_class100/'
     elif server_type == 'libigpu0':
-        path = '/home/min/DATASET/ImageNet2012_class100/'
+        path = '/home/min/datasets/ImageNet2012_class100/'
     elif server_type == 'libigpu1':
         path = '/home/min/datasets/ImageNet2012_class100/'
     elif server_type == 'libigpu3':
@@ -236,13 +369,16 @@ def load_imagenet_class100(batch_size, img_s_load=512, img_s_return=448, server_
             normalize
         ]))
 
+    if num_workers_t == None:
+        num_workers_t = num_workers
+    
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
         num_workers=num_workers, pin_memory=True, drop_last=True)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True,
-        num_workers=num_workers, pin_memory=True, drop_last=True)
+        num_workers=num_workers_t, pin_memory=True, drop_last=True)
     return train_loader, test_loader, 100
 
-def load_imagenet_class100_DDP(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True, num_workers=4):
+def notused_load_imagenet_class100_DDP(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True, num_workers=4):
     if server_type == 'libigpu4':
         path = '/home/choi574/datasets/ImageNet2012_class100/'
     elif server_type == 'libigpu2':
@@ -254,7 +390,7 @@ def load_imagenet_class100_DDP(batch_size, img_s_load=512, img_s_return=448, ser
     elif server_type == 'libigpu7':
         path = '/home/choi574/datasets/ImageNet2012_class100/'
     elif server_type == 'libigpu0':
-        path = '/home/min/DATASET/ImageNet2012_class100/'
+        path = '/home/min/datasets/ImageNet2012_class100/'
     elif server_type == 'libigpu1':
         path = '/home/min/datasets/ImageNet2012_class100/'
     elif server_type == 'libigpu3':
@@ -302,7 +438,7 @@ def load_imagenet_class100_DDP(batch_size, img_s_load=512, img_s_return=448, ser
     return train_loader, test_loader, 100, train_sampler
 
 
-def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True, num_workers=4):
+def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True, num_workers=4, num_workers_t=None):
     if server_type == 'libigpu0':
         path = '/home/libi/datasets/ImageNet2012/'
     elif server_type == 'libigpu1':
@@ -321,6 +457,8 @@ def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='lib
         path = '/home/libiadm/datasets/ImageNet2012/'
     elif server_type == 'libigpu7':
         path = '/home/libiadm/datasets/ImageNet2012/'
+    elif server_typt == 'arc':
+        path = '/tmp/minkyu/ImageNet2012/'
     else:
         print("undefined server type")
 
@@ -362,6 +500,9 @@ def load_imagenet(batch_size, img_s_load=512, img_s_return=448, server_type='lib
             normalize
         ]))
 
+    if num_workers_t == None:
+        num_workers_t = num_workers
+
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
         num_workers=num_workers, pin_memory=True, drop_last=True)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True,
@@ -387,6 +528,8 @@ def load_imagenet_DDP(batch_size, img_s_load=512, img_s_return=448, server_type=
         path = '/home/libiadm/datasets/ImageNet2012/'
     elif server_type == 'libigpu7':
         path = '/home/libiadm/datasets/ImageNet2012/'
+    elif server_typt == 'arc':
+        path = '/tmp/minkyu/ImageNet2012/'
     else:
         print("undefined server type")
 
@@ -433,7 +576,7 @@ def load_imagenet_DDP(batch_size, img_s_load=512, img_s_return=448, server_type=
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=False,
         num_workers=num_workers, pin_memory=True, drop_last=True, sampler=train_sampler)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=True,
-        num_workers=num_workers, pin_memory=True, drop_last=True)
+        num_workers=int(num_workers/2), pin_memory=True, drop_last=True)
     return train_loader, test_loader, 1000, train_sampler
 
 
@@ -772,6 +915,45 @@ def load_ucsd_birds(batch_size, img_size):
             num_workers=4, pin_memory=True, drop_last=True)
     return train_loader, test_loader, 200
 
+def plot_samples_from_images_fixedRange(images, batch_size, plot_path, filename, isRange01=False):
+    ''' Plot images
+    Changed 2020.11.23
+        isRange01 is added to normalize image in different way. 
+
+    Args: 
+        images: (b, c, h, w), tensor in any range. (c=3 or 1)
+        batch_size: int
+        plot_path: string
+        filename: string
+        isRange01: True/False, Normalization will be different. 
+    '''
+    #print(torch.max(images), torch.min(images))
+    if isRange01:
+        max_pix = torch.max(torch.abs(images))
+        images = images/max_pix
+        #print(max_pix, torch.min(torch.abs(images)))
+        #print(torch.max(images))
+    else:
+        #print(max_pix)
+        images = ((images*0.2) + 0.5)
+        
+    if(images.size()[1] == 1): # binary image
+        images = torch.cat((images, images, images), 1)
+    
+    images = np.swapaxes(np.swapaxes(images.cpu().numpy(), 1, 2), 2, 3)
+
+    fig = plt.figure(figsize=(batch_size/4+5, batch_size/4+5))
+    for idx in np.arange(batch_size):
+        ax = fig.add_subplot(batch_size/8, 8, idx+1, xticks=[], yticks=[])
+        ax.imshow(images[idx])
+    plt.tight_layout(pad=1, w_pad=0, h_pad=0)
+    if plot_path:
+        plt.savefig(os.path.join(plot_path, filename))
+    else:
+        plt.show()
+    plt.close()
+    pass
+
 
 def plot_samples_from_images(images, batch_size, plot_path, filename, isRange01=False):
     ''' Plot images
@@ -816,7 +998,86 @@ def plot_samples_from_images(images, batch_size, plot_path, filename, isRange01=
     plt.close()
     pass
 
+def plot_one_sample_from_images_old(images, plot_path, filename, isRange01=False):
+    ''' Plot images
+    Changed 2020.11.23
+        isRange01 is added to normalize image in different way. 
 
+    Args: 
+        images: (b, c, h, w), tensor in any range. (c=3 or 1)
+        batch_size: int
+        plot_path: string
+        filename: string
+        isRange01: True/False, Normalization will be different. 
+    '''
+    #print(torch.max(images), torch.min(images))
+    if isRange01:
+        max_pix = torch.max(torch.abs(images))
+        images = images/max_pix
+        #print(max_pix, torch.min(torch.abs(images)))
+        #print(torch.max(images))
+    else:
+        max_pix = torch.max(torch.abs(images))
+        #print(max_pix)
+        if max_pix != 0.0:
+            images = ((images/max_pix) + 1.0)/2.0
+        else:
+            images = (images + 1.0) / 2.0
+            #print('inside')
+    if(images.size()[1] == 1): # binary image
+        images = torch.cat((images, images, images), 1)
+    
+    images = np.swapaxes(np.swapaxes(images.cpu().numpy(), 1, 2), 2, 3)
+
+    idx=0
+    fig = plt.figure()
+    plt.imshow(images[idx])
+    plt.savefig(os.path.join(plot_path, filename))
+    plt.close()
+
+def plot_one_sample_from_images(images, plot_path, filename, isRange01=False):
+    ''' Plot images
+    Changed 2020.11.23
+        isRange01 is added to normalize image in different way. 
+
+    Args: 
+        images: (b, c, h, w), tensor in any range. (c=3 or 1)
+        batch_size: int
+        plot_path: string
+        filename: string
+        isRange01: True/False, Normalization will be different. 
+    '''
+    #print(torch.max(images), torch.min(images))
+    if isRange01:
+        '''max_pix = torch.max(torch.abs(images))
+        images = images/max_pix'''
+        images = images
+        #print(max_pix, torch.min(torch.abs(images)))
+        #print(torch.max(images))
+    else:
+        max_pix = torch.max(torch.abs(images))
+        #print(max_pix)
+        if max_pix != 0.0:
+            images = ((images/max_pix) + 1.0)/2.0
+        else:
+            images = (images + 1.0) / 2.0
+            #print('inside')
+    if(images.size()[1] == 1): # binary image
+        images = torch.cat((images, images, images), 1)
+    
+    images = np.swapaxes(np.swapaxes(torch.squeeze(images).cpu().numpy(), 0, 1), 1, 2)
+    #print(np.shape(images))
+
+    #print(filename)
+    #print(os.path.join(plot_path, filename))
+    idx=0
+    plt.imsave(os.path.join(plot_path, filename), images)
+    
+
+    #fig = plt.figure()
+    #plt.imshow(images[idx])
+    #plt.savefig(os.path.join(plot_path, filename))
+    #plt.close()
 
 
 def accuracy(output, target, topk=(1,)):
@@ -831,10 +1092,19 @@ def accuracy(output, target, topk=(1,)):
 
         res = []
         for k in topk:
-            correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+            #correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+            correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
+def get_classification_TF(output, target):
+    with torch.no_grad():
+        _, pred = output.topk(1, 1, True, True)
+        #print(pred.size(), pred.t().size())
+        pred = pred.t()
+        correct = pred.eq(target.view(1, -1).expand_as(pred))
+        #print(correct.size())
+        return correct
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -961,7 +1231,12 @@ def check_load_params(model_after_load, load_dir):
     diff = torch.sum(torch.abs(model_after_load.conv1_1.conv.weight.cuda() - params_dict['module.resnet.conv1_1.conv.weight'].cuda()))
     print('weight difference must be 0.0: ', diff)
 
-def compare_params():
+def compare_params(param1, param2):
+    for k, v in param1.items():
+        print(k)
+        print(torch.sum(torch.abs(param1[k] - param2[k])))
+
+def compare_params_old():
     basedir = '/home/libiadm/export/HDD1/minkyu/train/polar/pp_repl_fem_femb_ts'
 
     init_dir = os.path.join(basedir, 'Attn_e0b0.pt')
@@ -1039,7 +1314,7 @@ def mark_fixations(imgs, fixs, ds=7, isRed=True):
 
     return (imgs -0.5)*2.0
 
-def mark_fixations_history(imgs, fixs_h, ds=7):
+def mark_fixations_history(imgs, fixs_h, ds=21, isLastRed=True):
     '''
     Mark fixation history in the given images. This function is used to mark fixation history. 
     Args:
@@ -1053,7 +1328,7 @@ def mark_fixations_history(imgs, fixs_h, ds=7):
     img_m = imgs
     for step in range(n_steps):
         if step == n_steps-1:
-            imgs = mark_point(imgs, fixs_h[:, step, :], ds=ds, isRed=True)
+            imgs = mark_point(imgs, fixs_h[:, step, :], ds=ds, isRed=isLastRed)
         else:
             imgs = mark_point(imgs, fixs_h[:, step, :], ds=ds, isRed=False)
 
@@ -1196,6 +1471,7 @@ def add_heatmap_on_image(heatmap, image):
     #print(np.shape(image), np.shape(heatmap))
     heatmap_cv = heatmap * 255
     heatmap_cv = cv2.applyColorMap(heatmap_cv.astype(np.uint8), cv2.COLORMAP_JET) #(h, w, 3)
+    heatmap_cv = cv2.cvtColor(heatmap_cv, cv2.COLOR_BGR2RGB)
     image_cv = np.swapaxes(np.swapaxes(image, 0, 1), 1, 2)*255
     #print(np.shape(image_cv), np.shape(heatmap_cv))
     hm_img = cv2.addWeighted(heatmap_cv, 0.7, image_cv.astype(np.uint8), 0.3, 0)
@@ -1215,7 +1491,7 @@ def add_heatmap_on_image_tensor(heatmap, image, resize_s=(112,112), isNormHM=Tru
     ret = []
     bs = image.size(0)
 
-    heatmap = torch.squeeze(heatmap)
+    #heatmap = torch.squeeze(heatmap)
     heatmap = heatmap.unsqueeze(1) #(b, 1, h, w)
     heatmap = torch.nn.functional.interpolate(heatmap, resize_s, mode='bilinear') 
     image = torch.nn.functional.interpolate(image, resize_s, mode='bilinear') 
@@ -1270,3 +1546,131 @@ def check_gradients(model):
         if max_mean < mn:
             max_mean = mn
     return max_max, max_mean, max_val
+
+def get_one_patch(images, action_sequence, patch_size):
+    """
+    Get small patch of the original image
+    image: tensor, (b, 3, h, w)
+    action_sequence: tensor, (b, 2), -1~1, (x, y)
+    patch_size: int, pixel level size
+    """
+    batch_size = images.size(0)
+    image_size = images.size(2)
+    patch_size_half = int(patch_size/2)
+
+    patch_coordinate = ((action_sequence + 1.0)/2.0 * image_size).int()
+    #patch_coordinate = torch.floor(action_sequence * (image_size - patch_size)).int()
+    patches = []
+    for i in range(batch_size):
+        per_patch = images[i, :,
+                ((patch_coordinate[i, 1] - patch_size_half).item()).int(): ((patch_coordinate[i, 1] + patch_size_half).item()).int(),
+                ((patch_coordinate[i, 0] - patch_size_half).item()).int(): ((patch_coordinate[i, 0] + patch_size_half).item()).int()]
+
+        patches.append(per_patch.view(1, per_patch.size(0), per_patch.size(1), per_patch.size(2)))
+
+    return torch.cat(patches, 0)
+
+
+def get_theta(attn, scale_attn, batch_s):
+    '''
+    code from libigpu3:~/research_mk/imagenet_new/sumReluHeatmap_fullD_oneshot/train.py
+    attn (tensor): (batchx2), (-1~1)
+    '''
+    a1x = torch.ones(batch_s, 1, 1, requires_grad=False, device='cuda')*scale_attn#(self.v_img_s[2]/self.img_size_o) # (batch, 1, 1)
+    a1y = torch.zeros(batch_s, 1, 1, requires_grad=False, device='cuda')
+    a2x = torch.zeros(batch_s, 1, 1, requires_grad=False, device='cuda')
+    a2y = torch.ones(batch_s, 1, 1, requires_grad=False, device='cuda')*scale_attn#(self.v_img_s[1]/self.img_size_o)
+
+    a1 = torch.cat((a1x, a1y), 1)#.cuda()#, requires_grad=False) # (b, 2, 1)
+    a2 = torch.cat((a2x, a2y), 1)#.cuda()#, requires_grad=False)
+    #print('get_theta', a1.is_cuda, a2.is_cuda, attn.is_cuda)
+    #print(a1.size(), a2.size(), attn.size()) 
+    #theta = torch.cat((a1, a2, torch.unsqueeze(torch.squeeze(attn.cuda()), 2)), 2) # (b, 2, 3)
+    theta = torch.cat((a1, a2, torch.unsqueeze(attn.cuda(), 2)), 2) # (b, 2, 3)
+    return theta#.cuda()
+
+def get_glimpses(images, fixs_xy, patch_s, crop_ratio=[0.25, 0.5, 1.0]):
+    '''
+    code from libigpu3:~/research_mk/imagenet_new/sumReluHeatmap_fullD_oneshot/train.py
+    fixs_xy: tensor, (b, 2), -1~1
+
+    2021/6/22: After Neurips submission, this code is changed to use mode=bilinear, instead of nearest. 
+        It was nearest but nearest seems to obfuscate gradients. 
+    '''
+    mode = 'bilinear'
+    batch_s = images.size(0)
+    theta_highres = get_theta(fixs_xy, crop_ratio[0], batch_s)
+    grid_highres = torch.nn.functional.affine_grid(theta_highres, torch.Size((batch_s, 3, patch_s*2, patch_s*2)))#, device='cuda')
+    img_highres = torch.nn.functional.grid_sample(images, grid_highres, mode='bilinear')
+    img_highres = torch.nn.functional.interpolate(img_highres, (patch_s, patch_s), mode=mode)
+
+    theta_midres = get_theta(fixs_xy, crop_ratio[1], batch_s)
+    grid_midres = torch.nn.functional.affine_grid(theta_midres, torch.Size((batch_s, 3, patch_s*2, patch_s*2)))#, device='cuda')
+    img_midres = torch.nn.functional.grid_sample(images, grid_midres, mode='bilinear')
+    img_midres = torch.nn.functional.interpolate(img_midres, (patch_s, patch_s), mode=mode)
+
+    theta_lowres = get_theta(fixs_xy, crop_ratio[2], batch_s)
+    grid_lowres = torch.nn.functional.affine_grid(theta_lowres, torch.Size((batch_s, 3, patch_s*2, patch_s*2)))#, device='cuda')
+    img_lowres = torch.nn.functional.grid_sample(images, grid_lowres, mode='bilinear')
+    img_lowres = torch.nn.functional.interpolate(img_lowres, (patch_s, patch_s), mode=mode)
+
+    return img_highres, img_midres, img_lowres
+
+def get_glimpses_new(images, fixs_xy, patch_s, crop_ratio=[0.25, 0.5, 1.0]):
+    '''
+    code from libigpu3:~/research_mk/imagenet_new/sumReluHeatmap_fullD_oneshot/train.py
+    fixs_xy: tensor, (b, 2), -1~1
+
+    2021/6/22: After Neurips submission, this code is changed to use mode=bilinear, instead of nearest. 
+        It was nearest but nearest seems to obfuscate gradients. 
+    '''
+    mode = 'bilinear'
+    batch_s = images.size(0)
+    theta_highres = get_theta(fixs_xy, crop_ratio[0], batch_s)
+    grid_highres = torch.nn.functional.affine_grid(theta_highres, torch.Size((batch_s, 3, patch_s, patch_s)))#, device='cuda')
+    img_highres = torch.nn.functional.grid_sample(images, grid_highres, mode='bilinear')
+    #img_highres = torch.nn.functional.interpolate(img_highres, (patch_s, patch_s), mode=mode)
+
+    theta_midres = get_theta(fixs_xy, crop_ratio[1], batch_s)
+    grid_midres = torch.nn.functional.affine_grid(theta_midres, torch.Size((batch_s, 3, patch_s, patch_s)))#, device='cuda')
+    img_midres = torch.nn.functional.grid_sample(images, grid_midres, mode='bilinear')
+    #img_midres = torch.nn.functional.interpolate(img_midres, (patch_s, patch_s), mode=mode)
+
+    theta_lowres = get_theta(fixs_xy, crop_ratio[2], batch_s)
+    grid_lowres = torch.nn.functional.affine_grid(theta_lowres, torch.Size((batch_s, 3, patch_s, patch_s)))#, device='cuda')
+    img_lowres = torch.nn.functional.grid_sample(images, grid_lowres, mode='bilinear')
+    #img_lowres = torch.nn.functional.interpolate(img_lowres, (patch_s, patch_s), mode=mode)
+
+    return img_highres, img_midres, img_lowres
+
+
+def spatial_basis(height=28, width=28, channels=64):
+    '''
+    code from 
+        https://github.com/cjlovering/interpretable-reinforcement-learning-using-attention/blob/master/torchbeast/attention_net.py
+    '''
+    """
+    NOTE: The `height` and `weight` depend on the inputs' size and its resulting size
+    after being processed by the vision network.
+    """
+
+    h, w, d = height, width, channels
+
+    p_h = torch.mul(
+            torch.arange(1, h + 1).unsqueeze(1).float(), torch.ones(1, w).float()
+            ) * (np.pi / h)
+    p_w = torch.mul(
+            torch.ones(h, 1).float(), torch.arange(1, w + 1).unsqueeze(0).float()
+            ) * (np.pi / w)
+
+    # TODO: I didn't quite see how U,V = 4 made sense given that the authors form the spatial
+    # basis by taking the outer product of the values.
+    # I am not confident in this step.
+    U = V = 8  # size of U, V.
+    u_basis = v_basis = torch.arange(1, U + 1).unsqueeze(0).float()
+    a = torch.mul(p_h.unsqueeze(2), u_basis)
+    b = torch.mul(p_w.unsqueeze(2), v_basis)
+    out = torch.einsum("hwu,hwv->hwuv", torch.cos(a), torch.cos(b)).reshape(h, w, d)
+
+    return out.permute(2, 0, 1)
+
