@@ -1,0 +1,274 @@
+import torch
+from torch.utils.data import DataLoader
+from torchvision import transforms
+import torch.optim as optim
+import torch.nn as nn
+import torch.backends.cudnn as cudnn
+import torchvision.datasets as datasets
+import numpy as np
+import time
+import torch.nn.functional as F
+from torch.nn import init
+import os
+import argparse
+
+import sys
+sys.path.append('/mnt/lls/local_export/3/home/choi574/git_libs/misc/')
+sys.path.append('/home/cminkyu/git_libs/misc/')
+#sys.path.append('/home/choi574/research_mk/git_libs_onlyForLibi2/misc/')
+import misc
+sys.path.append('/mnt/lls/local_export/3/home/choi574/git_libs/misc/imagenet/imagenet_my100/imgnet_my100_val100/')
+sys.path.append('/home/cminkyu/git_libs/misc/imagenet/imagenet_my100/imgnet_my100_val100/')
+#sys.path.append('/home/choi574/research_mk/git_libs_onlyForLibi2/misc/imagenet/imagenet_my100/')
+import dataloader_imagenet100my_val100 as dl
+sys.path.append('/mnt/lls/local_export/3/home/choi574/git_libs/misc/adversarial_attacks/')
+sys.path.append('/home/cminkyu/git_libs/misc/adversarial_attacks/')
+#sys.path.append('/home/choi574/research_mk/git_libs_onlyForLibi2/misc/adversarial_attacks/')
+import utils 
+
+import logging
+
+from advertorch.attacks import CarliniWagnerL2Attack_EOTv2 
+from advertorch.utils import NormalizeByChannelMeanStd
+from advertorch_examples.utils import get_panda_image, bchw2bhwc, bhwc2bchw
+
+
+#### update 2023/01/18
+# This function is based on attack4s_CW_targeted_EOT_batch.py. 
+# This function is for Un-targeted attack of CW. 
+
+#### update 2022/02/20
+# This function is based on  attack4s_test8s_batch_EOTCorrect_record_memEfficient_targeted_getData.py
+# This code implements targetd L2 CW attack with EOT. 
+# This code supports batch size not equal to 1. 
+
+
+def attack_L2CW_EOTv2_untargeted(args, model_o, c_list, batch_size=64, n_steps=24, img_s_load=256+128, img_s_return=224+112, cudnn_backends=False, 
+        max_iters=1000, bsearch_steps=1, learning_rate=0.01, compensation=0, n_EOT=1,  
+        shuffle_test=False, save_imgs=False, isVal1000=True, save_more=False, path_advLabels=None, es=None):
+    '''
+    '''
+
+    logging.basicConfig(filename='logs.log', filemode='w', level=logging.DEBUG, format='%(asctime)s %(message)s')
+    print('L2CW-EOT: {} iterations'.format(n_EOT))
+    print('Current attack script requires model to return [return_dict]')
+    print('Save more info to npy: [{}]'.format(save_more))
+
+    torch.backends.cudnn.enabled = cudnn_backends
+
+    normalize = NormalizeByChannelMeanStd(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    model = torch.nn.Sequential(normalize, model_o).cuda()
+    model_o.eval()
+    model.eval()
+
+    if isVal1000:
+        val_loader = dl.load_imagenet_myclass100_val1000_for_AdvAttacks(batch_size=batch_size, img_s_load=img_s_load, img_s_return=img_s_return, 
+                server_type=args.server_type, shuffle_test=shuffle_test)
+    else:
+        val_loader = dl.load_imagenet_myclass100_val100_for_AdvAttacks(batch_size=batch_size, img_s_load=img_s_load, img_s_return=img_s_return, 
+                server_type=args.server_type)
+        print('\n\n============== You choose to use VAL-100, not VAL-1000. Beware not to be confused  ======================\n\n')
+    print('\n\n=============================')
+    print(' Image will be loaded by ')
+    print('      {}  /  {} '.format(img_s_load, img_s_return))
+    print('=============================\n\n')
+    print('\n\n=============================')
+    print(' attack4s_test8s ')
+    print('=============================\n\n')
+
+    if not os.path.exists('data'):
+        os.makedirs('data')
+    if not os.path.exists('plots'):
+        os.makedirs('plots')
+
+    fr = []
+    acc_list = []
+    fr8 = []
+    acc_list8 = []
+
+    if 0.0 not in c_list:
+        c_list = [0.0] + c_list
+
+    for cval in c_list:
+        linf_accum = []
+        l2_accum = []
+        l1_accum = []
+        acc_top1 = []
+        acc_top5 = []
+        for step in range(n_steps):
+            acc_top1.append(misc.AverageMeter('Acc@1', ':6.2f'))
+            acc_top5.append(misc.AverageMeter('Acc@5', ':6.2f'))
+
+        print('c-val: ', cval)
+        attack = CarliniWagnerL2Attack_EOTv2(
+            model, num_classes=100, binary_search_steps=bsearch_steps, max_iterations=max_iters,
+            abort_early=True, initial_const=cval, 
+            clip_min=0.0, clip_max=1.0,
+            targeted=False, n_EOT=n_EOT)
+
+        time_s = time.perf_counter()
+
+        model.eval()
+        for batch_i, data in enumerate(val_loader):
+            inputs, labels = data
+            inputs, labels = inputs.cuda(), labels.cuda().long()
+            loss_b = 0.0
+            #labels_gt = labels
+
+            '''
+            if path_advLabels:
+                print('load shared adversarial labels')
+                labels = torch.tensor(np.load(path_advLabels), device='cuda').long()
+            else:
+                #print('adversarial labels will be sampled now')
+                labels = torch.randint(0, 100, labels.size(), device='cuda').long()
+            '''
+
+            if batch_i == 0:
+                clean_imgs_accum = inputs.detach().cpu().numpy()
+            else:
+                clean_imgs_accum = np.concatenate((clean_imgs_accum, inputs.detach().cpu().numpy()), 0)
+
+            ''' Test Original Image on the model '''
+            with torch.no_grad():
+                inputs_norm = normalize(inputs)
+                rd = model_o(inputs_norm, n_steps=n_steps, isReturnAllStep=True)
+                pred = rd['pred'] # (step, batch, c, h, w)
+                tf_clean_steps = []
+                for step in range(n_steps-compensation):
+                    tf = misc.get_classification_TF(pred[step], labels)
+                    #print(tf.size())
+                    ss = torch.squeeze(tf)
+                    tf_clean_steps.append(ss)
+                tf_clean_steps = torch.stack(tf_clean_steps).t()#.unsqueeze(0)
+                #print('tf_clean_step size, batch: ', batch_i)
+                #print(tf_clean_steps.size())
+
+                if batch_i == 0:
+                    tf_clean = tf_clean_steps
+                else:
+                    tf_clean = torch.cat((tf_clean, tf_clean_steps), 0)
+                #print(tf_clean.size())
+
+            ''' Attack image '''
+            tic = time.time()
+            if cval != 0.0:              
+                x_adv, c_estimated = attack.perturb(inputs, labels)
+            else:
+                x_adv = inputs
+                c_estimated = torch.zeros((100), device='cuda')
+            toc = time.time()
+            #print("elapsed time: {} sec".format(toc - tic))
+            logging.info("batch: {},   elapsed time: {} sec".format(batch_i, toc - tic))
+
+
+            ##################### inference long steps #######################
+            with torch.no_grad():
+                x_adv_norm = normalize(x_adv)
+                return_dict = model_o(x_adv_norm, n_steps=n_steps, isReturnAllStep=True)
+
+            tf_adv_steps = []
+            for step in range(n_steps-compensation):
+                pred = torch.squeeze(return_dict['pred'][step])
+                tf = misc.get_classification_TF(pred, torch.squeeze(labels))
+                #print(tf)
+                ss = torch.squeeze(tf)
+                tf_adv_steps.append(ss)
+            tf_adv_steps = torch.stack(tf_adv_steps).t()
+            if batch_i == 0:
+                tf_adv = tf_adv_steps
+            else:
+                tf_adv = torch.cat((tf_adv, tf_adv_steps), 0)
+
+            ''' norms '''
+            linf = torch.squeeze(torch.norm(torch.abs(inputs.view(inputs.size(0), -1)-x_adv.view(x_adv.size(0), -1)), p=float('inf'), dim=1))
+            l1 = torch.squeeze(torch.norm(torch.abs(inputs.view(inputs.size(0), -1)-x_adv.view(x_adv.size(0), -1)), p=1, dim=1))
+            l2 = torch.squeeze(torch.norm(torch.abs(inputs.view(inputs.size(0), -1)-x_adv.view(x_adv.size(0), -1)), p=2, dim=1))
+            #print('size of norms')
+            #print(linf.size())
+            ''' accum imgs '''
+            if batch_i == 0:
+                linf_accum = linf
+                l1_accum = l1
+                l2_accum = l2
+                c_estimated_accum = c_estimated
+                if save_more:
+                    x_adv_accum = x_adv
+                    fixs_accum = torch.stack(return_dict['fixs_xy']).permute(1, 0, 2) # (b, step, 2)
+                    labelsGT_accum = labels
+                    labelsAdv_accum = labels
+                #inputs_accum = inputs
+            else:
+                linf_accum = torch.cat((linf_accum, linf), 0)
+                l1_accum = torch.cat((l1_accum, l1), 0)
+                l2_accum = torch.cat((l2_accum, l2), 0)
+                c_estimated_accum = torch.cat((c_estimated_accum, c_estimated), 0)
+                if save_more:
+                    x_adv_accum = torch.cat((x_adv_accum, x_adv), 0)
+                    fixs_accum = torch.cat((fixs_accum, torch.stack(return_dict['fixs_xy']).permute(1, 0, 2)), 0)
+                    labelsGT_accum = torch.cat((labelsGT_accum, labels), 0)
+                    labelsAdv_accum = torch.cat((labelsAdv_accum, labels), 0)
+                #inputs_accum = torch.cat((inputs_accum, inputs), 0)
+
+            #linf_accum.append(linf.detach().cpu().numpy())
+            #l1_accum.append(l1.detach().cpu().numpy())
+            #l2_accum.append(l2.detach().cpu().numpy())
+
+            if cval == 0.0:
+                ls = labels
+            else:
+                ls = labels
+            for step in range(n_steps-compensation):
+                #print( torch.squeeze(return_dict['pred'][step])[0].unsqueeze(0).size(), torch.squeeze(ls).unsqueeze(0).size())
+                acc1, acc5 = misc.accuracy(torch.squeeze(return_dict['pred'][step]), torch.squeeze(ls), topk=(1, 5))
+                acc_top1[step].update(acc1[0], batch_size)
+                acc_top5[step].update(acc5[0], batch_size)
+
+            #print(batch_i)
+            if save_imgs and batch_i==0:
+                n_plots = min(56, int(args.batch_size))
+                misc.plot_one_sample_from_images(normalize(inputs[:n_plots]),
+                        'plots', 'test_e'+str(0)+'b'+str(batch_i)+str(int(cval*1000))+'_in.jpg')
+                misc.plot_one_sample_from_images(normalize(x_adv[:n_plots]), 
+                        'plots', 'test_e'+str(0)+'b'+str(batch_i)+str(int(cval*1000))+'_in_adv.jpg')
+                for step in range(n_steps):
+                    fixs_until = torch.stack(return_dict['fixs_xy'][:step+1]).permute(1, 0, 2) # (b, step, 2)
+                    img_fixs = misc.mark_fixations_history(inputs[:n_plots], fixs_until[:n_plots])
+                    misc.plot_samples_from_images(img_fixs, n_plots,
+                           'plots', 'test_e'+str(0)+'b'+str(batch_i)+str(int(cval*1000))+'_fix_hist'+'_s'+str(step))
+                    #print('np_e'+str(0)+'b'+str(batch_i)+'_fix_hist'+'_s'+str(step)+'.npy')
+                    #np.save('./plots/np_e'+str(0)+'b'+str(batch_i)+'_fix_hist'+str(int(eps*1000))+'_s'+str(step)+'.npy', img_fixs.cpu().numpy())
+
+            #print('curr batch: ', batch_i)
+            if es != None:
+                if batch_i>es:
+                    break
+                    #print('test data saved')
+        
+        print('{} : \t'.format(cval), end='')
+        for s in range(n_steps):
+            print('{}, '.format(acc_top1[s].avg), end='')
+        print('\n')
+        
+        fd = open('print_adv_acc', 'a')
+        fd.write('{} : \t'.format(cval))#, end='')
+        for s in range(n_steps):
+            fd.write('{}, '.format(acc_top1[s].avg))#, end='')
+        fd.write('\n')
+        fd.close()
+
+        np.save('./data/tf_adv_e'+str(int(cval*10000))+'.npy', tf_adv.cpu().numpy())
+        np.save('./data/tf_clean_e'+str(int(cval*10000))+'.npy', tf_clean.cpu().numpy())
+        np.save('./data/perturb_linf_e'+str(int(cval*10000))+'.npy', linf_accum.cpu().numpy())
+        np.save('./data/perturb_l1_e'+str(int(cval*10000))+'.npy', l1_accum.cpu().numpy())
+        np.save('./data/perturb_l2_e'+str(int(cval*10000))+'.npy', l2_accum.cpu().numpy())
+        np.save('./data/c_estimated_e'+str(int(cval*10000))+'.npy', c_estimated_accum.cpu().numpy())
+        if save_more:
+            np.save('./data/img_adv_e'+str(int(cval*10000))+'.npy', x_adv_accum.cpu().numpy())
+            #np.save('img_clean_e'+str(int(eps*10000))+'.npy', clean_imgs_accum.cpu().numpy())
+            np.save('./data/img_clean_e'+str(int(cval*10000))+'.npy', clean_imgs_accum)
+            np.save('./data/fixs_e'+str(int(cval*10000))+'.npy', fixs_accum.cpu().numpy())
+            np.save('./data/labelsGT_e'+str(int(cval*10000))+'.npy', labelsGT_accum.cpu().numpy())
+            np.save('./data/labelsAdv_e'+str(int(cval*10000))+'.npy', labelsAdv_accum.cpu().numpy())
+        #np.save('img_clean_e'+str(int(eps*10000))+'.npy', inputs_accum.cpu().numpy())
+

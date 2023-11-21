@@ -9,7 +9,7 @@ exmaple codes:
 '''
 
 
-def count_stats(args, model, image_s=224, image_c=3):
+def count_stats(model, image_s=224, image_c=3):
     ''' 2021.02.28.
     This function counts 1)#parameters, 2)flops.
     In order to use this function, the model has to be changed. 
@@ -32,8 +32,10 @@ def count_stats(args, model, image_s=224, image_c=3):
 
     model.start_flops_count()
     #model(args, image, isTrain=False).sum()
+    #with torch.no_grad():
+    #    _ = model(image, args, isTrain=False)
     with torch.no_grad():
-        _ = model(image, args, isTrain=False)
+        _ = model(image)
     print("GFLOPs", model.compute_average_flops_cost() / 1000000000.0)
     model.stop_flops_count()
     return

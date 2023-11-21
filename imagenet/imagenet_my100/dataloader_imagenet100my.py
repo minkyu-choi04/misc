@@ -94,6 +94,157 @@ def load_imagenet_myclass100_noNormalize(batch_size, img_s_load=512, img_s_retur
     return train_loader, test_loader, 100
 
 
+
+def load_imagenet_full1000(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True, num_workers=4, num_workers_t=None, shuffle_test=True):
+    if server_type == 'libigpu4':
+        path = '/home/choi574/datasets/ImageNet_full_downloaded_20230129/'
+    if server_type == 'libigpu8':
+        path = '/data/datasets/ImageNet2012/'
+    if server_type == 'libilab':
+        path = '/datasets/ImageNet2012/'
+    if server_type == 'libigpu6':
+        path = '/home/choi574/datasets/ImageNet2012/'
+    if server_type == 'libigpu5' or server_type == 'libigpu7':
+        path = '/home/choi574/datasets/ImageNet_full_downloaded_20230129/'
+        #path = '/home/choi574/datasets/ImageNet2012/'
+    if server_type == 'libilab':
+        path = '/datasets/ImageNet_full_downloaded_20230129/'
+    elif server_type != 'greatlake':
+        path = '/home/libiadm/datasets/ImageNet2012/'
+    elif server_type == 'greatlake':
+        path = '/tmpssd/minkyu/ImageNet2012/'
+    else:
+        print("undefined server type")
+    print('================ MY CLASS 100 IMGNET =================== ')
+
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    if isRandomResize:
+        print('load imagenet with RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.RandomResizedCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+    else:
+        print('load imagenet without RandomResize')
+        train_transforms = transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ]) 
+
+
+    train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+                                        transform=train_transforms)
+    '''train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+    transform=transforms.Compose([
+    transforms.RandomResizedCrop(img_s_return),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    normalize
+    ]))'''
+    test_data =  datasets.ImageFolder(root=os.path.expanduser(path + 'val/'),
+        transform=transforms.Compose([
+            transforms.Resize(img_s_load),
+            transforms.CenterCrop(img_s_return),
+            transforms.ToTensor(),
+            normalize
+        ]))
+
+    if num_workers_t == None:
+        num_workers_t = num_workers
+    
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
+        num_workers=num_workers, pin_memory=True, drop_last=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=shuffle_test,
+        num_workers=num_workers_t, pin_memory=True, drop_last=True)
+    return train_loader, test_loader, 1000
+
+
+
+
+
+class TransformsSimCLR:
+    """
+    A stochastic data augmentation module that transforms any given data example randomly
+    resulting in two correlated views of the same example,
+    denoted x ̃i and x ̃j, which we consider as a positive pair.
+    
+    from https://github.com/Spijkervet/SimCLR/blob/master/simclr/modules/transformations/simclr.py
+    """
+
+    def __init__(self, size):
+        s = 1
+        color_jitter = transforms.ColorJitter(
+            0.8 * s, 0.8 * s, 0.8 * s, 0.2 * s
+        )
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        self.train_transform = transforms.Compose(
+            [
+                transforms.RandomResizedCrop(size=size),
+                transforms.RandomHorizontalFlip(),  # with 0.5 probability
+                #torchvision.transforms.RandomApply([color_jitter], p=0.8),
+                #torchvision.transforms.RandomGrayscale(p=0.2),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
+
+        self.test_transform = transforms.Compose(
+            [
+                transforms.Resize(size=size),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
+
+    def __call__(self, x):
+        return self.train_transform(x), self.train_transform(x)
+
+def load_imagenet_full1000_contrastiveLearning(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', num_workers=4, num_workers_t=None, shuffle_test=True):
+    if server_type == 'libigpu8':
+        print('libigpu8--------------------')
+        path = '/data/datasets/ImageNet2012/'
+        print(path, server_type)
+    if server_type == 'libigpu4':
+        path = '/home/choi574/datasets/ImageNet_full_downloaded_20230129/'
+    if server_type == 'libilab':
+        path = '/datasets/ImageNet2012/'
+    if server_type == 'libigpu6':
+        path = '/home/choi574/datasets/ImageNet2012/'
+    if server_type == 'libigpu5' or server_type == 'libigpu7':
+        path = '/home/choi574/datasets/ImageNet_full_downloaded_20230129/'
+    if server_type == 'libilab':
+        path = '/datasets/ImageNet_full_downloaded_20230129/'
+    #elif server_type != 'greatlake':
+    #    path = '/home/libiadm/datasets/ImageNet2012/'
+    elif server_type == 'greatlake':
+        path = '/tmpssd/minkyu/ImageNet2012/'
+    else:
+        print("undefined server type")
+
+
+
+    train_data = datasets.ImageFolder(root=os.path.expanduser(path + 'train/'),
+                                        transform=TransformsSimCLR(img_s_return))
+    test_data = datasets.ImageFolder(root=os.path.expanduser(path + 'val/'),
+                                        transform=TransformsSimCLR(img_s_return))
+    
+    if num_workers_t == None:
+        num_workers_t = num_workers
+    
+    train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
+        num_workers=num_workers, pin_memory=True, drop_last=True)
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, shuffle=shuffle_test,
+        num_workers=num_workers_t, pin_memory=True, drop_last=True)
+    return train_loader, test_loader, 1000
+
+
+
 def load_imagenet_myclass100(batch_size, img_s_load=512, img_s_return=448, server_type='libigpu5', isRandomResize=True, num_workers=4, num_workers_t=None, shuffle_test=True):
     if server_type == 'libigpu4':
         path = '/home/choi574/datasets/ImageNet2012_myclass100/'

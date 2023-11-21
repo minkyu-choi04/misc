@@ -1,4 +1,4 @@
-import torch                                                        
+import torch            
 from torch.utils.data import DataLoader                             
 from torchvision import transforms                                  
 import torch.optim as optim                                         
@@ -24,23 +24,98 @@ plt.switch_backend('agg')
 #from itertools import chain
 
 # This is required for salicon dataset
-#import datasetSALICON as ds
+import datasetSALICON as ds
+
+
+import numpy as np
+from scipy.stats import pearsonr
+
+def pearson_r(x, y):
+    """
+    Calculate Pearson's correlation coefficient (r) between two numpy arrays,
+    for each feature dimension.
+    Written by ChatGPT
+
+    Parameters
+    ----------
+    x : numpy array, size n_samples by feature_dimensions
+        First input array.
+    y : numpy array, size n_samples by feature_dimensions
+        Second input array.
+
+    Returns
+    -------
+    r : numpy array, size feature_dimensions
+        Pearson's correlation coefficient (r) between x and y, for each feature dimension.
+    """
+    r = np.zeros(x.shape[1])
+    for i in range(x.shape[1]):
+        r[i], _ = pearsonr(x[:,i], y[:,i])
+        
+    return r
+
+
+def check_nan(np_array):
+    '''
+    2023.02.07. Minkyu
+    Return True if any Nan is included'''
+    return np.isnan(np_array).any()
+
+class Conv2d(nn.Module):
+    def __init__(self, c_in, c_out, kernel_size=3, stride=1, 
+                 padding=0, padding_mode='zeros',
+                 dilation=1, bias=False, activation=True):
+        super().__init__()
+        self.activation = activation
+        self.conv = nn.Conv2d(c_in, c_out, kernel_size=kernel_size, stride=stride, 
+                              padding=padding, padding_mode=padding_mode,
+                              dilation=dilation, bias=bias)
+        self.bn = nn.BatchNorm2d(c_out)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        out = x
+        out = self.relu(self.bn(self.conv(out))) if self.activation else self.conv(out)
+        return out
 
 
 from pathlib import Path
-def make_dir(path, parents=False):
-    Path(os.path.expanduser(path)).mkdir(parents=parents, exist_ok=True)
+def make_dir(path, parents=False, exist_ok=True):
+    Path(os.path.expanduser(path)).mkdir(parents=parents, exist_ok=exist_ok)
+
+def remove_nan(fms_norm):
+    '''2023.01.25. 
+    Remove nan from given tensor. 
+    Repalce nan value to 0.0. 
+    '''
+    
+    fms_norm[fms_norm != fms_norm] = 0
+    return fms_norm
+
 
 class Load_PIL_to_tensor():
-    def __init__(self, img_s_load=227):
-        self.transform = transforms.Compose([
-            transforms.Resize(img_s_load),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225],
-            ),
-        ])
+    '''
+    Modified 2022.11.02, Minkyu
+        1) mean and std can be given as inputs. 
+    '''
+    def __init__(self, img_s_load=227, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], isResize=True):
+        if isResize:
+            self.transform = transforms.Compose([
+                transforms.Resize(img_s_load),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=mean,
+                    std=std,
+                ),
+            ])
+        else:
+            self.transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=mean,
+                    std=std,
+                ),
+            ])
 
     def pil_loader(self, path: str) -> Image.Image:
         # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
@@ -523,7 +598,8 @@ def load_imagenet_DDP(batch_size, img_s_load=512, img_s_return=448, server_type=
     elif server_type == 'libigpu4':
         path = '/home/libiadm/datasets/ImageNet2012/'
     elif server_type == 'libigpu5':
-        path = '/home/libiadm/datasets/ImageNet2012/'
+        #path = '/home/libiadm/datasets/ImageNet2012/'
+        path = '/home/choi574/datasets/ImageNet2012/'
     elif server_type == 'libigpu6':
         path = '/home/libiadm/datasets/ImageNet2012/'
     elif server_type == 'libigpu7':
@@ -580,30 +656,30 @@ def load_imagenet_DDP(batch_size, img_s_load=512, img_s_return=448, server_type=
     return train_loader, test_loader, 1000, train_sampler
 
 
-def load_salicon(batch_size, server_type):
+def load_salicon(batch_size, server_type, img_size=(480, 640)):
     '''In order to use this function, you need to move all the images in the ./test/ into ./test/1/. 
     This is because the pytorch's imageFolder and Dataloader works in this way. 
     '''
     if server_type == 'libigpu1':
         path_dataset = os.path.expanduser('~/datasets/salicon_original')
-    elif server_type == 'libigpu5':
+    elif server_type == 'libigpu5' or server_type == 'libigpu7' or server_type == 'libigpu6' or server_type == 'libigpu4':
         path_dataset = os.path.expanduser('~/datasets/salicon_original')
     else:
-        print('[ERROR]: Server type not implemented')
+        print('[ERROR]: Server type not implemented: ', server_type)
 
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225])
 
-    data_train = ds.SALICON(path_dataset, mode='train')
-    data_val = ds.SALICON(path_dataset, mode='val')
+    data_train = ds.SALICON(path_dataset, mode='train', size_img=img_size, size_sal=img_size)
+    data_val = ds.SALICON(path_dataset, mode='val', size_img=img_size, size_sal=img_size)
     data_test = datasets.ImageFolder(root=os.path.expanduser(os.path.join(path_dataset,'image', 'images', 'test')), 
             transform=transforms.Compose([transforms.ToTensor(), normalize]))
     train_loader = torch.utils.data.DataLoader(data_train, batch_size=batch_size, shuffle=True, 
-            num_workers=4, pin_memory=True, drop_last=True)
-    val_loader = torch.utils.data.DataLoader(data_val, batch_size=batch_size, shuffle=True, 
-            num_workers=2, pin_memory=True, drop_last=True)
+            num_workers=4, pin_memory=False, drop_last=True)
+    val_loader = torch.utils.data.DataLoader(data_val, batch_size=batch_size, shuffle=False, 
+            num_workers=1, pin_memory=True, drop_last=True)
     test_loader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, shuffle=False, 
-            num_workers=2, pin_memory=True, drop_last=False)
+            num_workers=1, pin_memory=True, drop_last=False)
     return train_loader, val_loader, test_loader
 
 def load_mit300(batch_size, server_type):
@@ -955,7 +1031,7 @@ def plot_samples_from_images_fixedRange(images, batch_size, plot_path, filename,
     pass
 
 
-def plot_samples_from_images(images, batch_size, plot_path, filename, isRange01=False):
+def plot_samples_from_images(images, batch_size, plot_path, filename, isRange01=False, nCols=8):
     ''' Plot images
     Changed 2020.11.23
         isRange01 is added to normalize image in different way. 
@@ -986,9 +1062,9 @@ def plot_samples_from_images(images, batch_size, plot_path, filename, isRange01=
     
     images = np.swapaxes(np.swapaxes(images.cpu().numpy(), 1, 2), 2, 3)
 
-    fig = plt.figure(figsize=(batch_size/4+5, batch_size/4+5))
+    fig = plt.figure(figsize=(int(batch_size/4)+5, int(batch_size/4)+5))
     for idx in np.arange(batch_size):
-        ax = fig.add_subplot(batch_size/8, 8, idx+1, xticks=[], yticks=[])
+        ax = fig.add_subplot(int(batch_size/nCols), nCols, idx+1, xticks=[], yticks=[])
         ax.imshow(images[idx])
     plt.tight_layout(pad=1, w_pad=0, h_pad=0)
     if plot_path:
@@ -1041,7 +1117,7 @@ def plot_one_sample_from_images(images, plot_path, filename, isRange01=False):
         isRange01 is added to normalize image in different way. 
 
     Args: 
-        images: (b, c, h, w), tensor in any range. (c=3 or 1)
+        images: (c, h, w), tensor in any range. (c=3 or 1)
         batch_size: int
         plot_path: string
         filename: string
@@ -1236,8 +1312,8 @@ def compare_params(param1, param2):
         print(k)
         print(torch.sum(torch.abs(param1[k] - param2[k])))
 
-def compare_params_old():
-    basedir = '/home/libiadm/export/HDD1/minkyu/train/polar/pp_repl_fem_femb_ts'
+def compare_params_old(basedir):
+    #basedir = '/home/libiadm/export/HDD1/minkyu/train/polar/pp_repl_fem_femb_ts'
 
     init_dir = os.path.join(basedir, 'Attn_e0b0.pt')
     train_dir = os.path.join(basedir, 'Attn_e20b0.pt')
@@ -1251,8 +1327,13 @@ def compare_params_old():
         print(torch.sum(torch.abs(params_init[k] - params_train[k])))
 
 
-def noralize_min_max(fms):
+def normalize_min_max(fms):
     ''' Normalize input fms range from 0 to 1. 
+
+
+    2023.01.24. Minkyu
+        I made this function more stable by regulating (max_val - min_val) not close to 0. 
+
     Args: 
         fms: (b, c, h, w)
     return: 
@@ -1267,7 +1348,45 @@ def noralize_min_max(fms):
     #print(torch.min(fms.view(fms_s[0], -1), 1)[0].size())
     min_val = torch.min(fms.view(fms_s[0], -1), 1)[0].unsqueeze(1).unsqueeze(1).unsqueeze(1)
     max_val = torch.max(fms.view(fms_s[0], -1), 1)[0].unsqueeze(1).unsqueeze(1).unsqueeze(1)
-    fms_norm = (fms - min_val) / (max_val - min_val)
+
+    max_min = max_val - min_val
+    max_min[torch.logical_and(max_min>=0, max_min<=1e-4)] = 1
+
+    fms_norm = (fms - min_val) / max_min
+    assert not torch.isnan(fms_norm).any(), f"[Assert] from noralize_min_max in misc, nan is detected. "
+    return fms_norm
+
+def noralize_min_max(fms, isStable=False):
+    ''' Normalize input fms range from 0 to 1. 
+
+
+    2023.01.24. Minkyu
+        I made this function more stable by regulating (max_val - min_val) not close to 0. 
+
+    Args: 
+        fms: (b, c, h, w)
+    return: 
+        fms_norm: (b, c, h, w)
+    '''
+    fms_s = fms.size()
+    if len(fms_s) == 3:
+        fms = fms.unsqueeze(1)
+        fms_s = fms.size()
+
+    #print(fms_s)
+    #print(torch.min(fms.view(fms_s[0], -1), 1)[0].size())
+    #min_val = torch.min(fms.view(fms_s[0], -1), 1)[0].unsqueeze(1).unsqueeze(1).unsqueeze(1)
+    #max_val = torch.max(fms.view(fms_s[0], -1), 1)[0].unsqueeze(1).unsqueeze(1).unsqueeze(1)
+    min_val = torch.min(fms.reshape(fms_s[0], -1), 1)[0].unsqueeze(1).unsqueeze(1).unsqueeze(1)
+    max_val = torch.max(fms.reshape(fms_s[0], -1), 1)[0].unsqueeze(1).unsqueeze(1).unsqueeze(1)
+
+    max_min = max_val - min_val
+    #max_min[torch.logical_and(max_min>=0, max_min<=1e-4)] = 1
+
+    fms_norm = (fms - min_val) / max_min
+    #fms_norm = torch.nan_to_num(fms_norm)
+    fms_norm[fms_norm != fms_norm] = 0
+    assert not torch.isnan(fms_norm).any(), f"[Assert] from noralize_min_max in misc, nan is detected. "
     return fms_norm
 
 def mark_point(imgs, fixs, ds=7, isRed=True):
@@ -1493,8 +1612,10 @@ def add_heatmap_on_image_tensor(heatmap, image, resize_s=(112,112), isNormHM=Tru
 
     #heatmap = torch.squeeze(heatmap)
     heatmap = heatmap.unsqueeze(1) #(b, 1, h, w)
-    heatmap = torch.nn.functional.interpolate(heatmap, resize_s, mode='bilinear') 
-    image = torch.nn.functional.interpolate(image, resize_s, mode='bilinear') 
+    if resize_s is not None:
+        #print(heatmap.size())
+        heatmap = torch.nn.functional.interpolate(heatmap, resize_s, mode='bilinear') 
+        image = torch.nn.functional.interpolate(image, resize_s, mode='bilinear') 
 
     if isNormHM:
         heatmap = noralize_min_max(heatmap)
@@ -1588,6 +1709,60 @@ def get_theta(attn, scale_attn, batch_s):
     #theta = torch.cat((a1, a2, torch.unsqueeze(torch.squeeze(attn.cuda()), 2)), 2) # (b, 2, 3)
     theta = torch.cat((a1, a2, torch.unsqueeze(attn.cuda(), 2)), 2) # (b, 2, 3)
     return theta#.cuda()
+
+def get_glimpses_old(images, fixs_xy, patch_s, crop_ratio=[0.25, 0.5, 1.0]):
+    '''
+    code from libigpu3:~/research_mk/imagenet_new/sumReluHeatmap_fullD_oneshot/train.py
+    fixs_xy: tensor, (b, 2), -1~1
+
+    2021/6/22: After Neurips submission, this code is changed to use mode=bilinear, instead of nearest. 
+        It was nearest but nearest seems to obfuscate gradients. 
+    '''
+    mode = 'nearest'
+    batch_s = images.size(0)
+    theta_highres = get_theta(fixs_xy, crop_ratio[0], batch_s)
+    grid_highres = torch.nn.functional.affine_grid(theta_highres, torch.Size((batch_s, 3, patch_s*2, patch_s*2)))#, device='cuda')
+    img_highres = torch.nn.functional.grid_sample(images, grid_highres, mode='bilinear')
+    img_highres = torch.nn.functional.interpolate(img_highres, (patch_s, patch_s), mode=mode)
+
+    theta_midres = get_theta(fixs_xy, crop_ratio[1], batch_s)
+    grid_midres = torch.nn.functional.affine_grid(theta_midres, torch.Size((batch_s, 3, patch_s*2, patch_s*2)))#, device='cuda')
+    img_midres = torch.nn.functional.grid_sample(images, grid_midres, mode='bilinear')
+    img_midres = torch.nn.functional.interpolate(img_midres, (patch_s, patch_s), mode=mode)
+
+    theta_lowres = get_theta(fixs_xy, crop_ratio[2], batch_s)
+    grid_lowres = torch.nn.functional.affine_grid(theta_lowres, torch.Size((batch_s, 3, patch_s*2, patch_s*2)))#, device='cuda')
+    img_lowres = torch.nn.functional.grid_sample(images, grid_lowres, mode='bilinear')
+    img_lowres = torch.nn.functional.interpolate(img_lowres, (patch_s, patch_s), mode=mode)
+
+    return img_highres, img_midres, img_lowres
+
+def get_glimpses_old_old(images, fixs_xy, patch_s, crop_ratio=[0.25, 0.5, 1.0]):
+    '''
+    code from libigpu3:~/research_mk/imagenet_new/sumReluHeatmap_fullD_oneshot/train.py
+    fixs_xy: tensor, (b, 2), -1~1
+
+    2021/6/22: After Neurips submission, this code is changed to use mode=bilinear, instead of nearest. 
+        It was nearest but nearest seems to obfuscate gradients. 
+    '''
+    mode = 'nearest'
+    batch_s = images.size(0)
+    theta_highres = get_theta(fixs_xy, crop_ratio[0], batch_s)
+    grid_highres = torch.nn.functional.affine_grid(theta_highres, torch.Size((batch_s, 3, patch_s*2, patch_s*2)))#, device='cuda')
+    img_highres = torch.nn.functional.grid_sample(images, grid_highres, mode='nearest')
+    img_highres = torch.nn.functional.interpolate(img_highres, (patch_s, patch_s), mode=mode)
+
+    theta_midres = get_theta(fixs_xy, crop_ratio[1], batch_s)
+    grid_midres = torch.nn.functional.affine_grid(theta_midres, torch.Size((batch_s, 3, patch_s*2, patch_s*2)))#, device='cuda')
+    img_midres = torch.nn.functional.grid_sample(images, grid_midres, mode='nearest')
+    img_midres = torch.nn.functional.interpolate(img_midres, (patch_s, patch_s), mode=mode)
+
+    theta_lowres = get_theta(fixs_xy, crop_ratio[2], batch_s)
+    grid_lowres = torch.nn.functional.affine_grid(theta_lowres, torch.Size((batch_s, 3, patch_s*2, patch_s*2)))#, device='cuda')
+    img_lowres = torch.nn.functional.grid_sample(images, grid_lowres, mode='nearest')
+    img_lowres = torch.nn.functional.interpolate(img_lowres, (patch_s, patch_s), mode=mode)
+
+    return img_highres, img_midres, img_lowres
 
 def get_glimpses(images, fixs_xy, patch_s, crop_ratio=[0.25, 0.5, 1.0]):
     '''

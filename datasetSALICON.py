@@ -24,8 +24,10 @@ from torchvision import transforms
 # BGR MODE
 
 def imageProcessing(image, saliency, size_img, size_sal):
+    #print(len(image), size_img, size_sal)
     image = cv2.resize(image, (size_img[1], size_img[0]), interpolation=cv2.INTER_AREA).astype(np.float32)
     saliency = cv2.resize(saliency, (size_sal[1], size_sal[0]), interpolation=cv2.INTER_AREA).astype(np.float32)
+    #print('end')
 
     # remove mean value
     #image -= mean
@@ -83,8 +85,8 @@ class SALICON(Dataset):
         if N is not None:
             self.list_names = list_names[:N]
         # embed()
-        print("Init dataset in mode {}".format(mode))
-        print("\t total of {} images.".format(self.list_names.shape[0]))
+        #print("Init dataset in mode {}".format(mode))
+        #print("\t total of {} images.".format(self.list_names.shape[0]))
 
     def __len__(self):
         return self.list_names.shape[0]
@@ -97,6 +99,8 @@ class SALICON(Dataset):
 
         image = cv2.imread(rgb_ima)
         saliency = cv2.imread(sal_path, 0)
+        #print('self size: ', self.size_img, self.size_sal, rgb_ima, sal_path)
+        #print(len(image))
         return imageProcessing(image, saliency, self.size_img, self.size_sal)
 
 if __name__ == '__main__':

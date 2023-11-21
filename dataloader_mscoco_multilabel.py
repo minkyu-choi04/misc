@@ -8,7 +8,7 @@ from PIL import Image
 
 import sys
 sys.path.append('/home/choi574/coco/PythonAPI')
-#sys.path.append('/mnt/lls/local_export/3/home/choi574/cocoapi/PythonAPI')
+sys.path.append('/mnt/lls/local_export/3/home/choi574/cocoapi/PythonAPI')
 from pycocotools.coco import COCO
 
 class CocoDetection(datasets.coco.CocoDetection):
@@ -63,7 +63,11 @@ def load_mscoco_multilabel_ddp(batch_size, img_s_load=256, img_s_return=224, ser
         path = '/home/choi574/datasets/mscoco/'
     elif server_type == 'libigpu3':
         path = '/home/min/datasets/mscoco/'
-    elif server_type == 'libigpu4':
+    elif 'libigpu' in server_type:
+        path = '/home/choi574/datasets/mscoco/data/'
+    else:
+        print("undefined server type")
+    '''elif server_type == 'libigpu4':
         path = '/home/libiadm/datasets/ImageNet2012/'
     elif server_type == 'libigpu5':
         path = '/home/choi574/datasets/mscoco/'
@@ -71,8 +75,7 @@ def load_mscoco_multilabel_ddp(batch_size, img_s_load=256, img_s_return=224, ser
         path = '/home/choi574/datasets/mscoco/'
     elif server_type == 'libigpu7':
         path = '/home/libiadm/datasets/ImageNet2012/'
-    else:
-        print("undefined server type")
+    '''
     path = os.path.expanduser(path)
 
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -115,7 +118,10 @@ def load_mscoco_multilabel_ddp(batch_size, img_s_load=256, img_s_return=224, ser
         num_workers=num_workers, pin_memory=True, drop_last=True)
     return train_loader, val_loader, 80, train_sampler
 
-def load_mscoco_multilabel(batch_size, img_s_load=256, img_s_return=224, server_type='libigpu5', isRandomResize=True, num_workers=4, num_workers_t=None):
+def load_mscoco_multilabel(batch_size, img_s_load=256, img_s_return=224, server_type='libigpu5', isRandomResize=True, num_workers=4, num_workers_t=None, shuffle_val=False):
+    '''
+    function to load MSCOCO
+    '''
     if server_type == 'libigpu0':
         path = '/home/min/datasets/mscoco/'
     elif server_type == 'libigpu1':
@@ -134,6 +140,8 @@ def load_mscoco_multilabel(batch_size, img_s_load=256, img_s_return=224, server_
         path = '/home/choi574/datasets/mscoco/'
     elif server_type == 'libigpu7':
         path = '/home/choi574/datasets/mscoco/'
+        sys.path.append('/mnt/lls/local_export/3/home/choi574/cocoapi/PythonAPI')
+        from pycocotools.coco import COCO
     else:
         print("undefined server type")
     path = os.path.expanduser(path)
@@ -175,7 +183,7 @@ def load_mscoco_multilabel(batch_size, img_s_load=256, img_s_return=224, server_
 
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True,
         num_workers=num_workers, pin_memory=True, drop_last=True)
-    val_loader = torch.utils.data.DataLoader(val_data, batch_size=batch_size, shuffle=True,
+    val_loader = torch.utils.data.DataLoader(val_data, batch_size=batch_size, shuffle=shuffle_val,
         num_workers=num_workers_t, pin_memory=True, drop_last=True)
     return train_loader, val_loader, 80
 

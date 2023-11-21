@@ -6,6 +6,7 @@ import os
 import sys
 sys.path.append('/home/cminkyu/git_libs/convert_img_coords/cart/')
 sys.path.append('/mnt/lls/local_export/3/home/choi574/git_libs/convert_img_coords/')
+sys.path.append('/home/choi574/git_libs/convert_img_coords/')
 import Gaussian_RF as gauss
 
 
